@@ -1,0 +1,12 @@
+# Plain HTTP on the server's IP address, used when no domain is set.
+# Browsers will show "not secure"; fine for testing, use a domain for real use.
+:80 {
+	encode zstd gzip
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "SAMEORIGIN"
+		-Server
+	}
+	reverse_proxy app:3000
+}

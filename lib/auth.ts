@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { SITE_URL } from './config';
 import { db, ready, schema } from './db';
 import { SESSION_COOKIE, signSession, verifySession } from './session';
 
@@ -19,7 +20,8 @@ export async function startSession(userId: number) {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    // Without HTTPS (IP-only test setup) a Secure cookie would never be sent back.
+    secure: SITE_URL.startsWith('https://'),
     path: '/',
     maxAge: 60 * 60 * 24 * 30,
   });

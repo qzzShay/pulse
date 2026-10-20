@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Pulse: one-time VPS setup for Ubuntu 22.04/24.04 or Debian 12. Run as root from the project folder:
-#   sudo bash deploy/setup.sh pulse.example.com
-# Installs Docker, opens the firewall for SSH/HTTP/HTTPS, writes .env, starts app + Caddy (HTTPS),
+#   sudo bash deploy/setup.sh pulse.example.com   (with HTTPS)
+#   sudo bash deploy/setup.sh                      (no domain: plain HTTP on the server's IP)
+# Installs Docker, opens the firewall for SSH/HTTP/HTTPS, writes .env, starts app + Caddy,
 # and schedules a nightly database backup. Safe to run again: existing .env and data are kept.
 set -euo pipefail
 
@@ -16,9 +17,9 @@ die() { printf '\033[31mFehler: %s\033[0m\n' "$*" >&2; exit 1; }
 . /etc/os-release 2>/dev/null || true
 case "${ID:-}" in ubuntu|debian) ;; *) die "Unterstützt sind Ubuntu und Debian (gefunden: ${PRETTY_NAME:-unbekannt})." ;; esac
 
-if [ -z "$DOMAIN" ]; then read -rp "Domain für Pulse (z. B. pulse.example.com): " DOMAIN; fi
-[ -n "$DOMAIN" ] || die "Ohne Domain kann Caddy kein HTTPS-Zertifikat holen."
 DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN%%/*}"
+# An IP address counts as "no domain": Let's Encrypt only issues certificates for domains.
+if [[ "$DOMAIN" =~ ^[0-9.]+$ ]]; then DOMAIN=""; fi
 
 say "Pakete installieren"
 export DEBIAN_FRONTEND=noninteractive
@@ -48,13 +49,14 @@ ufw --force enable >/dev/null
 
 say "Konfiguration (.env)"
 cd "$APP_DIR"
+SERVER_IP=$(curl -fsS4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 if [ ! -f .env ]; then
-  cat > .env <<EOF
-DOMAIN=$DOMAIN
-SITE_URL=https://$DOMAIN
-BRAND=pulse
-SESSION_SECRET=$(openssl rand -hex 32)
-EOF
+  if [ -n "$DOMAIN" ]; then
+    printf 'DOMAIN=%s\nSITE_URL=https://%s\n' "$DOMAIN" "$DOMAIN" > .env
+  else
+    printf 'DOMAIN=%s\nSITE_URL=http://%s\nCADDYFILE=./deploy/Caddyfile.ip\n' "$SERVER_IP" "$SERVER_IP" > .env
+  fi
+  printf 'BRAND=pulse\nSESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> .env
   chmod 600 .env
   echo ".env angelegt (SESSION_SECRET wurde zufällig erzeugt)."
 else
@@ -63,9 +65,9 @@ fi
 mkdir -p data backups
 chown -R 1001:1001 data backups
 
-SERVER_IP=$(curl -fsS4 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
-DNS_IP=$(dig +short A "$DOMAIN" | tail -n1)
-if [ "$DNS_IP" != "$SERVER_IP" ]; then
+DNS_IP=""
+[ -n "$DOMAIN" ] && DNS_IP=$(dig +short A "$DOMAIN" | tail -n1)
+if [ -n "$DOMAIN" ] && [ "$DNS_IP" != "$SERVER_IP" ]; then
   printf '\n\033[33mHinweis: %s zeigt auf "%s", dieser Server hat %s.\nLege beim Domain-Anbieter einen A-Eintrag %s -> %s an. Caddy holt das Zertifikat, sobald der Eintrag stimmt.\033[0m\n' \
     "$DOMAIN" "${DNS_IP:-nichts}" "$SERVER_IP" "$DOMAIN" "$SERVER_IP"
 fi
@@ -82,7 +84,8 @@ chmod 644 /etc/cron.d/pulse-backup
 say "Warten, bis die App antwortet"
 for _ in $(seq 1 60); do
   if docker compose exec -T app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" 2>/dev/null; then
-    printf '\n\033[32mFertig. Öffne https://%s/login und lege dein Owner-Konto an.\033[0m\n' "$DOMAIN"
+    URL=$(grep '^SITE_URL=' .env | cut -d= -f2-)
+    printf '\n\033[32mFertig. Öffne %s/login und lege dein Owner-Konto an.\033[0m\n' "$URL"
     printf 'Updates: sudo bash deploy/update.sh   ·   Backups liegen in %s/backups\n' "$APP_DIR"
     exit 0
   fi
