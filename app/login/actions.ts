@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { checkPassword, endSession, hashPassword, startSession } from '@/lib/auth';
 import { RESERVED_USERNAMES } from '@/lib/config';
+import { consumeInvite, inviteValid, nameTaken, notifyOwner } from '@/lib/community';
 import { getUserByUsername, saveProfile, signupOpen, userCount } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { profileSchema, usernameError } from '@/lib/profile';
@@ -45,8 +46,12 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
 }
 
 export async function register(_: AuthState, form: FormData): Promise<AuthState> {
-  if (!(await signupOpen())) return { error: 'Die Registrierung ist gerade geschlossen.' };
+  const open = await signupOpen();
+  const invite = String(form.get('invite') || '').trim().toUpperCase().slice(0, 20);
+  // Closed sign-up still lets people in who have an invite code from the owner.
+  if (!open && !invite) return { error: 'Neue Konten gibt es gerade nur mit Einladungscode.' };
   const { ip } = await requestInfo();
+  if (!open && limited(`invite:${ip}`, 10, 60 * 60 * 1000)) return { error: 'Zu viele Versuche. Versuch es in einer Stunde noch einmal.' };
   if (limited(`signup:${ip}`, 5, 60 * 60 * 1000)) return { error: 'Zu viele neue Konten von dieser Verbindung. Versuch es in einer Stunde noch einmal.' };
   // Honeypot filled in: answer like a success would look to a script, but create nothing.
   if (String(form.get('website') || '')) return { error: 'Die Registrierung ist gerade nicht möglich.' };
@@ -62,14 +67,22 @@ export async function register(_: AuthState, form: FormData): Promise<AuthState>
   if (RESERVED_USERNAMES.has(username)) return { error: 'Dieser Name ist für die Plattform reserviert.' };
   if (password.length < 8) return { error: 'Das Passwort braucht mindestens 8 Zeichen.' };
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { error: 'Diese E-Mail-Adresse sieht nicht gültig aus.' };
-  if (await getUserByUsername(username)) return { error: `${username} ist schon vergeben.` };
+  if (await nameTaken(username)) return { error: `${username} ist schon vergeben.` };
+  const useInvite = !open && !!invite;
+  if (useInvite && !(await inviteValid(invite))) return { error: 'Dieser Einladungscode ist ungültig oder wurde schon benutzt.' };
 
   const first = (await userCount()) === 0;
   await ready();
   const [created] = await db.insert(schema.users).values({
     username, email, passwordHash: await hashPassword(password),
-    plan: first ? 'legend' : 'free', role: first ? 'owner' : 'user', createdAt: Date.now(),
+    plan: first ? 'legend' : 'free', role: first ? 'owner' : 'user', createdAt: Date.now(), invitedWith: useInvite ? invite : null,
   }).returning({ id: schema.users.id });
+  if (useInvite && !(await consumeInvite(invite, created.id))) {
+    // Someone used the same code a moment earlier.
+    await db.delete(schema.users).where(eq(schema.users.id, created.id));
+    return { error: 'Dieser Einladungscode wurde gerade schon benutzt.' };
+  }
+  if (!first) notifyOwner(`🆕 Neues Konto: **@${username}** (UID ${created.id})${useInvite ? ` mit Einladung ${invite}` : ''}`);
 
   const badges = ['early', ...(created.id <= 250 ? ['og'] : [])];
   await saveProfile(created.id, profileSchema.parse({ displayName: username, badges }));

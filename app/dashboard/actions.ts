@@ -5,13 +5,14 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { checkPassword, hashPassword, requireUser, rotateSessions } from '@/lib/auth';
 import { RESERVED_USERNAMES } from '@/lib/config';
-import { getProfile, getUserByUsername, saveProfile, setSetting } from '@/lib/data';
+import { nameTaken, RENAME_COOLDOWN_DAYS } from '@/lib/community';
+import { getProfile, saveProfile, setSetting } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { LINK_EFFECTS, normalizeUrl } from '@/lib/links';
 import { PLATFORMS } from '@/lib/platforms';
 import { detectMusic } from '@/lib/music';
 import { resolveMusic, type MusicMeta } from '@/lib/oembed';
-import { applyNiche, BADGES, LOOKS, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
+import { applyNiche, BADGES, decodeLook, LOOKS, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
 import type { User } from '@/lib/db/schema';
 
 export type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -79,6 +80,20 @@ export async function applyNicheAction(nicheId: string): Promise<Result> {
   refresh();
   revalidatePath(`/${user.username}`);
   return { ok: true, message: 'Vorlage übernommen' };
+}
+
+/** Applies a look code someone shared (colours, effects, card look); texts, images and links stay. */
+export async function applyLookAction(code: string): Promise<Result> {
+  const user = await requireUser();
+  const look = decodeLook(String(code).slice(0, 2100));
+  if (!look) return { ok: false, error: 'Dieser Code ist ungültig. Er beginnt mit PULSE1-.' };
+  const card = LOOKS.find(l => l.id === look.look);
+  if (card?.premium && user.plan === 'free') return { ok: false, error: `Der Code nutzt den Premium-Look ${card.label}.` };
+  const current = await getProfile(user.id);
+  await saveProfile(user.id, { ...current, ...look });
+  refresh();
+  revalidatePath(`/${user.username}`);
+  return { ok: true, message: 'Look übernommen' };
 }
 
 export async function saveBadgesAction(input: Pick<Profile, 'badges' | 'badgeStyle' | 'customBadges'>): Promise<Result> {
@@ -210,10 +225,17 @@ export async function updateAccountAction(input: { username: string; email: stri
   const err = usernameError(username);
   if (err) return { ok: false, error: err };
   if (RESERVED_USERNAMES.has(username)) return { ok: false, error: 'Dieser Name ist reserviert.' };
-  if (username !== user.username && (await getUserByUsername(username))) return { ok: false, error: `${username} ist schon vergeben.` };
+  const renamed = username !== user.username;
+  if (renamed && (await nameTaken(username, user.id))) return { ok: false, error: `${username} ist schon vergeben.` };
+  if (renamed && user.role !== 'owner' && user.nameChangedAt) {
+    const next = user.nameChangedAt + RENAME_COOLDOWN_DAYS * 864e5;
+    if (next > Date.now()) return { ok: false, error: `Du kannst deinen Namen erst am ${new Date(next).toLocaleDateString('de-DE')} wieder ändern.` };
+  }
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'Diese E-Mail-Adresse sieht nicht gültig aus.' };
   await ready();
-  await db.update(users).set({ username, email }).where(eq(users.id, user.id));
+  // A former alias becomes the main name: drop the alias row so the name is not listed twice.
+  if (renamed) await db.delete(schema.aliases).where(and(eq(schema.aliases.name, username), eq(schema.aliases.userId, user.id)));
+  await db.update(users).set({ username, email, ...(renamed ? { nameChangedAt: Date.now() } : {}) }).where(eq(users.id, user.id));
   refresh();
   return { ok: true, message: 'Konto gespeichert' };
 }

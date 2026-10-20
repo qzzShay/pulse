@@ -321,6 +321,16 @@ function PageTab({ draft, set }: TabProps) {
       <Section n="05" title="Eintritt und Zähler">
         <label className="switch" htmlFor="enter"><span>Eintritts-Bildschirm<small>„Klicke, um einzutreten“ über unscharfem Hintergrund. Der Klick startet auch deinen Profilsong.</small></span><input type="checkbox" id="enter" checked={draft.enterScreen} onChange={e => set('enterScreen', e.target.checked)} /></label>
         <label className="switch" htmlFor="views"><span>Aufrufzähler zeigen<small>Zeigt die Zahl echter Aufrufe unten auf der Karte.</small></span><input type="checkbox" id="views" checked={draft.showViews} onChange={e => set('showViews', e.target.checked)} /></label>
+        <label className="switch" htmlFor="likes"><span>Likes erlauben<small>Herz unten auf der Karte. Jede Person kann einmal liken, Bots werden nicht gezählt.</small></span><input type="checkbox" id="likes" checked={draft.showLikes} onChange={e => set('showLikes', e.target.checked)} /></label>
+        <label className="switch" htmlFor="disc"><span>In „Entdecken“ zeigen<small>Dein Profil erscheint auf der öffentlichen Entdecken-Seite und in der Rangliste.</small></span><input type="checkbox" id="disc" checked={draft.discoverable} onChange={e => set('discoverable', e.target.checked)} /></label>
+      </Section>
+      <Section n="06" title="Inhaltswarnung" text="Besucher bestätigen erst einen Hinweis, bevor dein Profil erscheint, z. B. bei 18+-Inhalten oder Blitzlicht-Effekten.">
+        <label className="switch" htmlFor="cw-on"><span>Warnung vor dem Profil zeigen</span><input type="checkbox" id="cw-on" checked={draft.contentWarning.on} onChange={e => set('contentWarning', { ...draft.contentWarning, on: e.target.checked })} /></label>
+        {draft.contentWarning.on && (
+          <label className="field" htmlFor="cw-text">Text <span className="hint" style={{ marginTop: -4 }}>leer = Standardtext</span>
+            <input className="in" id="cw-text" value={draft.contentWarning.text} maxLength={120} onChange={e => set('contentWarning', { ...draft.contentWarning, text: e.target.value })} placeholder="z. B. Enthält Inhalte ab 18 Jahren" />
+          </label>
+        )}
       </Section>
     </>
   );
@@ -409,6 +419,20 @@ function MusicSection({ draft, set, lines }: TabProps & { lines: number }) {
   );
 }
 
+const toLocalInput = (t: number | null) => {
+  if (!t) return '';
+  const d = new Date(t), p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+const TIMEZONES: [string, string][] = [
+  ['Europe/Berlin', 'Deutschland, Österreich, Schweiz'], ['Europe/London', 'Großbritannien'], ['Europe/Lisbon', 'Portugal'],
+  ['Europe/Istanbul', 'Türkei'], ['Europe/Moscow', 'Moskau'], ['Asia/Dubai', 'Dubai'], ['Asia/Kolkata', 'Indien'],
+  ['Asia/Shanghai', 'China'], ['Asia/Tokyo', 'Japan'], ['Asia/Seoul', 'Korea'], ['Australia/Sydney', 'Sydney'],
+  ['America/New_York', 'USA Ostküste'], ['America/Chicago', 'USA Mitte'], ['America/Denver', 'USA Mountain'], ['America/Los_Angeles', 'USA Westküste'],
+  ['America/Sao_Paulo', 'Brasilien'], ['America/Mexico_City', 'Mexiko'], ['UTC', 'UTC'],
+];
+
 function GalleryField({ images, onChange }: { images: string[]; onChange: (v: string[]) => void }) {
   const [text, setText] = useState(images.join('\n'));
   const update = (list: string[]) => { const next = list.slice(0, 12); setText(next.join('\n')); onChange(next); };
@@ -473,6 +497,34 @@ function WidgetsTab({ draft, set, setWidget }: TabProps & { setWidget: <K extend
             <label className="field" htmlFor="v-title">Titel<input className="in" id="v-title" value={W.video.title} maxLength={80} onChange={e => setWidget('video', { title: e.target.value })} /></label>
             <label className="field" htmlFor="v-views">Aufrufe<input className="in" id="v-views" value={W.video.views} maxLength={12} onChange={e => setWidget('video', { views: e.target.value })} /></label>
             <label className="field" htmlFor="v-url">Adresse<input className="in mono" id="v-url" value={W.video.url} onChange={e => setWidget('video', { url: e.target.value })} placeholder="https://youtube.com/watch?v=…" autoCapitalize="off" spellCheck={false} /></label>
+          </div>}
+        </div>
+        <div className="card card-pad stack">
+          {sw('w-text', 'Textkarte', 'Ein Absatz über dich, Regeln, Preise oder News. **fett** wird fett.', W.text.on, v => setWidget('text', { on: v }))}
+          {W.text.on && <>
+            <label className="field" htmlFor="t-wt">Überschrift<input className="in" id="t-wt" value={W.text.title} maxLength={40} onChange={e => setWidget('text', { title: e.target.value })} placeholder="z. B. Über mich" /></label>
+            <label className="field" htmlFor="t-wb"><span className="field-row"><span>Text</span><span className="hint mono">{W.text.body.length}/600</span></span>
+              <textarea className="in" id="t-wb" rows={4} value={W.text.body} maxLength={600} onChange={e => setWidget('text', { body: e.target.value })} />
+            </label>
+          </>}
+        </div>
+        <div className="card card-pad stack">
+          {sw('w-count', 'Countdown', 'Zählt bis zu einem Stream, Release oder Event herunter', W.countdown.on, v => setWidget('countdown', { on: v }))}
+          {W.countdown.on && <div className="grid-2">
+            <label className="field" htmlFor="c-title">Titel<input className="in" id="c-title" value={W.countdown.title} maxLength={40} onChange={e => setWidget('countdown', { title: e.target.value })} placeholder="z. B. Album-Release" /></label>
+            <label className="field" htmlFor="c-at">Zeitpunkt<input className="in" type="datetime-local" id="c-at" value={toLocalInput(W.countdown.at)} onChange={e => setWidget('countdown', { at: e.target.value ? new Date(e.target.value).getTime() : null })} /></label>
+            <label className="field" htmlFor="c-done">Text danach<input className="in" id="c-done" value={W.countdown.done} maxLength={40} onChange={e => setWidget('countdown', { done: e.target.value })} placeholder="Es ist so weit!" /></label>
+          </div>}
+        </div>
+        <div className="card card-pad stack">
+          {sw('w-clock', 'Lokale Uhrzeit', 'Zeigt Besuchern, wie spät es bei dir gerade ist', W.clock.on, v => setWidget('clock', { on: v }))}
+          {W.clock.on && <div className="grid-2">
+            <label className="field" htmlFor="k-tz">Zeitzone
+              <select className="in" id="k-tz" value={W.clock.tz} onChange={e => setWidget('clock', { tz: e.target.value })}>
+                {TIMEZONES.map(([tz, label]) => <option key={tz} value={tz}>{label}</option>)}
+              </select>
+            </label>
+            <label className="field" htmlFor="k-label">Ort (optional)<input className="in" id="k-label" value={W.clock.label} maxLength={30} onChange={e => setWidget('clock', { label: e.target.value })} placeholder="z. B. Berlin" /></label>
           </div>}
         </div>
         <div className="card card-pad stack">

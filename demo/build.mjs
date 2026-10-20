@@ -13,6 +13,7 @@ const alias = {
   setup(b) {
     b.onResolve({ filter: /^next\/link$/ }, () => ({ path: abs('demo/mocks/next-link.tsx') }));
     b.onResolve({ filter: /^next\/navigation$/ }, () => ({ path: abs('demo/mocks/next-navigation.ts') }));
+    b.onResolve({ filter: /^\.\/account$/ }, args => (args.importer.includes('/app/dashboard/settings/') ? { path: abs('demo/mocks/account.ts') } : undefined));
     b.onResolve({ filter: /^\.\/security$/ }, args => (args.importer.includes('/app/dashboard/settings/') ? { path: abs('demo/mocks/security.ts') } : undefined));
     b.onResolve({ filter: /actions$/ }, args => {
       if (args.path === '@/app/login/actions') return { path: abs('demo/mocks/login-actions.ts') };

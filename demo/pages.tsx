@@ -16,7 +16,7 @@ import { Icon, Logo } from '@/components/icons';
 import { PublicProfile } from '@/components/profile/PublicProfile';
 import type { Range } from '@/lib/analytics';
 import { linkState, type EditableLink } from '@/lib/links';
-import { initials } from '@/lib/profile';
+import { accent2, BADGES, encodeLook, initials, inkFor, parseProfile, rarity } from '@/lib/profile';
 import { demoReport } from './report';
 import { useDemo } from './store';
 
@@ -232,7 +232,7 @@ export function ConnectionsPage() {
 
 export function TemplatesPage() {
   const { profile } = useDemo();
-  return <Templates current={profile.niche} />;
+  return <Templates current={profile.niche} lookCode={encodeLook(profile)} />;
 }
 
 export function BadgesPage() {
@@ -278,26 +278,65 @@ export function SharePage() {
 }
 
 export function SettingsPage() {
-  const { user, signupOpen, totp, files, admin } = useDemo();
-  return <SettingsForms key={user.username} username={user.username} email={user.email ?? ''} owner={user.role === 'owner'} signupOpen={signupOpen} userCount={admin.users.length} host={SITE_HOST} createdAt={user.createdAt} totp={totp} files={files} quota={1024 ** 3} />;
+  const { user, signupOpen, totp, files, admin, aliases } = useDemo();
+  return <SettingsForms key={user.username} username={user.username} email={user.email ?? ''} owner={user.role === 'owner'} signupOpen={signupOpen} userCount={admin.users.length} host={SITE_HOST} createdAt={user.createdAt} totp={totp} files={files} quota={1024 ** 3}
+    aliases={aliases} aliasLimit={10} renameAt={null} />;
 }
 
 export function AdminPage({ params }: { params: URLSearchParams }) {
-  const { admin, signupOpen } = useDemo();
+  const { admin, signupOpen, invites, announcement, webhook } = useDemo();
   const q = (params.get('q') ?? '').toLowerCase();
   const t = params.get('tab');
-  const tab = t === 'reports' || t === 'done' ? t : 'users';
+  const tab = (['reports', 'done', 'invites', 'platform'] as const).find(x => x === t) ?? 'users';
   const users = admin.users.filter(u => !q || u.username.includes(q) || String(u.id) === q || (u.email ?? '').includes(q));
   const reports = admin.reports.filter(r => r.status === (tab === 'done' ? 'done' : 'open'));
   const open = admin.reports.filter(r => r.status === 'open').length;
   const stats = { total: admin.users.length, banned: admin.users.filter(u => u.bannedReason).length, newWeek: 3, views: 486, clicks: 121, bots: 57, bytes: admin.users.reduce((n, u) => n + u.storage, 0), open };
-  return <AdminPanel stats={stats} users={users} reports={reports} tab={tab} q={q} signupOpen={signupOpen} host={SITE_HOST} />;
+  return <AdminPanel stats={stats} users={users} reports={reports} tab={tab} q={q} signupOpen={signupOpen} host={SITE_HOST} siteUrl={SITE_URL} invites={invites} announcement={announcement} webhook={webhook} />;
+}
+
+/** Client copy of app/explore/page.tsx with sample profiles. */
+export function ExplorePage() {
+  const { user, profile, likes } = useDemo();
+  const sample = [
+    { username: user.username, p: profile, views: 1840, likes },
+    { username: 'kai', p: parseProfile(JSON.stringify({ displayName: 'Kai', accent: '#7cf3e4', bio: 'Pixel-Art und Lo-Fi-Beats', badges: ['artist', 'verified'] })), views: 612, likes: 97 },
+    { username: 'mira', p: parseProfile(JSON.stringify({ displayName: 'Mira', accent: '#ff8bd1', bio: 'Cosplay, Fotografie und viel Kaffee', badges: ['creator'] })), views: 133, likes: 41 },
+    { username: 'z', p: parseProfile(JSON.stringify({ displayName: 'Zed', accent: '#ffcf5c', bio: 'Speedrunner · Weltrekord in 3 Spielen', badges: ['gamer', 'og'] })), views: 96, likes: 58 },
+  ];
+  return (
+    <div className="land-wrap">
+      <header className="land-nav"><Link href="/" className="brand"><Logo />{BRAND}</Link><nav><Link className="btn btn-white btn-sm" href="/dashboard">Zum Dashboard</Link></nav></header>
+      <section className="explore">
+        <div className="explore-head"><span className="eyebrow">Entdecken</span><h1>Profile, die auffallen</h1><p className="lead">Die beliebtesten Seiten der letzten 7 Tage, die meisten Likes und neue Gesichter.</p></div>
+        <ol className="explore-grid">
+          {sample.map((e, i) => {
+            const name = e.p.displayName || e.username, r = rarity(e.username);
+            return (
+              <li key={e.username}>
+                <Link href={`/${e.username}`} className="xcard" style={{ '--pa': e.p.accent, '--pa2': accent2(e.p.accent) } as React.CSSProperties}>
+                  {i < 3 && <span className={`xrank r${i + 1}`}>#{i + 1}</span>}
+                  <span className="xbanner" />
+                  <span className="xav" style={{ color: inkFor(e.p.accent) }}>{e.p.avatar ? <img src={e.p.avatar} alt="" /> : initials(name)}</span>
+                  <b className="xname">{name}</b>
+                  <span className="xhandle">@{e.username}{r.key !== 'std' && <span className={`rar r-${r.key}`}>{r.label}</span>}</span>
+                  {(e.p.bioMode === 'typewriter' ? e.p.bioLines[0] : e.p.bio) && <span className="xbio">{e.p.bioMode === 'typewriter' ? e.p.bioLines[0] : e.p.bio}</span>}
+                  <span className="xbadges">{e.p.badges.filter(b => b in BADGES).slice(0, 3).map(b => <span key={b}>{BADGES[b as keyof typeof BADGES]}</span>)}</span>
+                  <span className="xstats"><span><Icon name="eye" />{e.views.toLocaleString('de-DE')} <small>7 T.</small></span><span><Icon name="heart" />{e.likes}</span></span>
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+    </div>
+  );
 }
 
 export function PublicPage() {
   const { user, profile, links, clicks } = useDemo();
   const views = demoReport(7, links, clicks).allTimeViews;
-  return <PublicProfile profile={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} host={SITE_HOST} brand={BRAND} />;
+  return <PublicProfile profile={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} host={SITE_HOST} brand={BRAND} likes={useDemo().likes} />;
 }
 
 export function LandingPage() {

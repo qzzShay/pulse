@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { and, eq, gt } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { notifyOwner } from '@/lib/community';
 import { getUserByUsername } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { limited } from '@/lib/ratelimit';
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
     .where(and(eq(schema.reports.userId, user.id), eq(schema.reports.reporter, reporter), gt(schema.reports.createdAt, dayAgo))).limit(1);
   if (!dupe) {
     await db.insert(schema.reports).values({ userId: user.id, reason: parsed.data.reason, details: parsed.data.details.trim(), reporter, createdAt: Date.now() });
+    notifyOwner(`🚩 Meldung zu **@${user.username}**: ${REPORT_REASONS[parsed.data.reason]}${parsed.data.details.trim() ? ` – „${parsed.data.details.trim().slice(0, 200)}“` : ''}`);
   }
   return NextResponse.json({ ok: true });
 }

@@ -7,15 +7,19 @@ import { useToast } from '@/components/dashboard/Toast';
 import { Icon } from '@/components/icons';
 import { rarity, usernameError } from '@/lib/profile';
 import { changePasswordAction, setSignupOpenAction, updateAccountAction, type Result } from '../actions';
+import { addAliasAction, deleteAccountAction, removeAliasAction } from './account';
 import { deleteUploadAction, disable2faAction, enable2faAction, signOutOthersAction, start2faAction } from './security';
 
 export type StoredFile = { id: string; kind: string; size: number; createdAt: number };
 
 const fmtSize = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1).replace('.', ',').replace(',0', '')} GB` : n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-type Props = { username: string; email: string; owner: boolean; signupOpen: boolean; userCount: number; host: string; createdAt: number; totp: boolean; files: StoredFile[]; quota: number };
+type Props = {
+  username: string; email: string; owner: boolean; signupOpen: boolean; userCount: number; host: string; createdAt: number; totp: boolean; files: StoredFile[]; quota: number;
+  aliases: string[]; aliasLimit: number; renameAt: number | null;
+};
 
-export function SettingsForms({ username: u0, email: e0, owner, signupOpen, userCount, host, createdAt, totp, files, quota }: Props) {
+export function SettingsForms({ username: u0, email: e0, owner, signupOpen, userCount, host, createdAt, totp, files, quota, aliases, aliasLimit, renameAt }: Props) {
   const [username, setUsername] = useState(u0);
   const [email, setEmail] = useState(e0);
   const [pw, setPw] = useState({ current: '', next: '' });
@@ -33,7 +37,7 @@ export function SettingsForms({ username: u0, email: e0, owner, signupOpen, user
   });
 
   return (
-    <>
+    <div className="auto-num">
       <div className="page-head">
         <span className="eyebrow">Konto</span>
         <h1>Einstellungen</h1>
@@ -41,7 +45,7 @@ export function SettingsForms({ username: u0, email: e0, owner, signupOpen, user
       </div>
 
       <section className="acc">
-        <div className="acc-head"><div><span className="sec-num">01</span><h2>Konto</h2><p>Wenn du deinen Namen änderst, ändert sich auch deine Adresse. Alte Links auf deine Seite funktionieren dann nicht mehr.</p></div></div>
+        <div className="acc-head"><div><span className="sec-num" /><h2>Konto</h2><p>Wenn du deinen Namen änderst, ändert sich auch deine Adresse. Alte Links auf deine Seite funktionieren dann nicht mehr.</p></div></div>
         <form className="stack" onSubmit={e => { e.preventDefault(); run(updateAccountAction({ username, email })); }}>
           <div className="grid-2">
             <label className="field" htmlFor="s-user">Name
@@ -54,12 +58,15 @@ export function SettingsForms({ username: u0, email: e0, owner, signupOpen, user
             <label className="field" htmlFor="s-mail">E-Mail<input className="in" id="s-mail" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="für die Anmeldung per E-Mail" /></label>
           </div>
           {nameErr && <p className="err">{nameErr}</p>}
+          {renameAt && renameAt > Date.now() && <p className="hint">Namen ändern geht wieder ab {new Date(renameAt).toLocaleDateString('de-DE')}. Die Sperre verhindert, dass kurze Namen blockiert werden.</p>}
           <div><button type="submit" className="btn btn-white btn-sm" disabled={pending || !!nameErr || (username === u0 && email === e0)}>Konto speichern</button></div>
         </form>
       </section>
 
+      <Aliases names={aliases} limit={aliasLimit} host={host} run={run} pending={pending} />
+
       <section className="acc">
-        <div className="acc-head"><div><span className="sec-num">02</span><h2>Passwort</h2></div></div>
+        <div className="acc-head"><div><span className="sec-num" /><h2>Passwort</h2></div></div>
         <form className="stack" onSubmit={e => { e.preventDefault(); run(changePasswordAction(pw), () => setPw({ current: '', next: '' })); }}>
           <input type="text" name="username" autoComplete="username" value={u0} readOnly hidden />
           <div className="grid-2">
@@ -73,13 +80,13 @@ export function SettingsForms({ username: u0, email: e0, owner, signupOpen, user
       <TwoFactor enabled={totp} run={run} pending={pending} />
 
       <section className="acc">
-        <div className="acc-head"><div><span className="sec-num">04</span><h2>Speicher</h2><p>Bilder, Videos und Songs, die du hochgeladen hast. Gelöschte Dateien verschwinden auch von deiner Seite.</p></div></div>
+        <div className="acc-head"><div><span className="sec-num" /><h2>Speicher</h2><p>Bilder, Videos und Songs, die du hochgeladen hast. Gelöschte Dateien verschwinden auch von deiner Seite.</p></div></div>
         <Storage files={files} quota={quota} run={run} />
       </section>
 
       {owner && (
         <section className="acc">
-          <div className="acc-head"><div><span className="sec-num">05</span><h2>Plattform</h2><p>Du bist Owner. Solange die Registrierung geschlossen ist, kann niemand außer dir ein Konto anlegen.</p></div></div>
+          <div className="acc-head"><div><span className="sec-num" /><h2>Plattform</h2><p>Du bist Owner. Solange die Registrierung geschlossen ist, kommen neue Leute nur mit einem Einladungscode rein (Admin → Einladungen).</p></div></div>
           <div className="card card-pad stack">
             <label className="switch" htmlFor="signup">
               <span>Registrierung für andere öffnen<small>{userCount} {userCount === 1 ? 'Konto' : 'Konten'} auf der Plattform. Neue Konten bekommen den Plan Free.</small></span>
@@ -90,13 +97,19 @@ export function SettingsForms({ username: u0, email: e0, owner, signupOpen, user
       )}
 
       <section className="acc">
-        <div className="acc-head"><div><span className="sec-num">{owner ? '06' : '05'}</span><h2>Sitzung</h2><p>Hast du dich auf einem fremden Gerät angemeldet? Melde alle anderen Geräte ab, dieses bleibt angemeldet.</p></div></div>
+        <div className="acc-head"><div><span className="sec-num" /><h2>Sitzung</h2><p>Hast du dich auf einem fremden Gerät angemeldet? Melde alle anderen Geräte ab, dieses bleibt angemeldet.</p></div></div>
         <div className="row">
           <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => run(signOutOthersAction())}><Icon name="shield" />Andere Geräte abmelden</button>
           <form action={logout}><button type="submit" className="btn btn-ghost btn-sm"><Icon name="logout" />Abmelden</button></form>
         </div>
       </section>
-    </>
+
+      <section className="acc">
+        <div className="acc-head"><div><span className="sec-num" /><h2>Deine Daten</h2><p>Lade alles herunter, was Pulse über dein Konto speichert: Profil, Links, Uploads-Liste und Statistik.</p></div></div>
+        <div><a className="btn btn-ghost btn-sm" href="/dashboard/settings/export" download><Icon name="download" />Daten herunterladen (JSON)</a></div>
+        {!owner && <DeleteAccount username={u0} />}
+      </section>
+    </div>
   );
 }
 
@@ -112,7 +125,7 @@ function TwoFactor({ enabled, run, pending }: { enabled: boolean; run: (p: Promi
   };
   return (
     <section className="acc">
-      <div className="acc-head"><div><span className="sec-num">03</span><h2>Zwei-Faktor-Anmeldung</h2><p>Nach dem Passwort fragt Pulse nach einem Code aus deiner Authenticator-App (Google Authenticator, Aegis, 1Password, Authy …). Ohne dein Handy kommt niemand in dein Konto.</p></div></div>
+      <div className="acc-head"><div><span className="sec-num" /><h2>Zwei-Faktor-Anmeldung</h2><p>Nach dem Passwort fragt Pulse nach einem Code aus deiner Authenticator-App (Google Authenticator, Aegis, 1Password, Authy …). Ohne dein Handy kommt niemand in dein Konto.</p></div></div>
       {enabled ? (
         <form className="card card-pad stack" onSubmit={e => { e.preventDefault(); run(disable2faAction({ code, password }), () => { setCode(''); setPassword(''); }); }}>
           <span className="row"><span className="pill pill-good"><Icon name="shield" />Aktiv</span><span className="hint">Zum Ausschalten brauchst du Passwort und einen aktuellen Code.</span></span>
@@ -167,5 +180,60 @@ function Storage({ files, quota, run }: { files: StoredFile[]; quota: number; ru
         </div>
       )}
     </div>
+  );
+}
+
+function Aliases({ names, limit, host, run, pending }: { names: string[]; limit: number; host: string; run: (p: Promise<Result>, after?: () => void) => void; pending: boolean }) {
+  const [name, setName] = useState('');
+  const err = name ? usernameError(name) : null;
+  return (
+    <section className="acc">
+      <div className="acc-head"><div><span className="sec-num" /><h2>Aliase</h2><p>Weitere Namen, die auf dein Profil weiterleiten, z. B. eine kürzere Schreibweise. {names.length} von {limit} genutzt.</p></div></div>
+      {names.length > 0 && (
+        <div className="alias-list">
+          {names.map(n => (
+            <span key={n} className="alias">
+              <span className="mono">{host}/{n}</span>
+              <button type="button" className="icon-btn" aria-label={`${n} entfernen`} disabled={pending} onClick={() => run(removeAliasAction(n))}><Icon name="x" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      {names.length < limit && (
+        <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); run(addAliasAction(name), () => setName('')); }}>
+          <label className="field" htmlFor="alias" style={{ flex: '1 1 260px' }}>Neuer Alias
+            <span className="name-field">
+              <span className="pre">{host}/</span>
+              <input id="alias" value={name} maxLength={20} autoCapitalize="off" spellCheck={false} onChange={e => setName(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))} />
+            </span>
+          </label>
+          <button type="submit" className="btn btn-white btn-sm" disabled={pending || !name || !!err}>Hinzufügen</button>
+        </form>
+      )}
+      {err && <p className="err">{err}</p>}
+    </section>
+  );
+}
+
+function DeleteAccount({ username }: { username: string }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [pending, start] = useTransition();
+  const toast = useToast();
+  if (!open) return <div><button type="button" className="btn btn-danger btn-sm" onClick={() => setOpen(true)}><Icon name="trash" />Konto löschen</button></div>;
+  return (
+    <form className="card card-pad stack danger-zone" onSubmit={e => { e.preventDefault(); start(async () => { const res = await deleteAccountAction({ password, confirm }); if (res && !res.ok) toast(res.error, { error: true }); }); }}>
+      <b>Konto endgültig löschen</b>
+      <p className="hint">Profil, Links, Statistik, Uploads und Aliase werden sofort gelöscht. Dein Name wird wieder frei. Das lässt sich nicht rückgängig machen.</p>
+      <div className="grid-2">
+        <label className="field" htmlFor="del-pw">Passwort<input className="in" id="del-pw" type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>
+        <label className="field" htmlFor="del-name">Tippe „{username}“<input className="in mono" id="del-name" value={confirm} autoCapitalize="off" spellCheck={false} onChange={e => setConfirm(e.target.value)} /></label>
+      </div>
+      <div className="row">
+        <button type="submit" className="btn btn-danger btn-sm" disabled={pending || !password || confirm.trim().toLowerCase() !== username}>{pending ? 'Löscht …' : 'Endgültig löschen'}</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Abbrechen</button>
+      </div>
+    </form>
   );
 }

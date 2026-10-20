@@ -25,6 +25,11 @@ Link-in-Bio-Plattform für Creator, Gamer, Artists, Musiker:innen, Streamer und 
 - **Admin-Bereich** (nur Owner): Plattform-Zahlen, Konten suchen, Plan ändern, Badges „Verifiziert“ und „Partner“ vergeben, sperren mit Grund (Seite verschwindet, Anmeldung zeigt den Grund), Konten löschen, Meldungen bearbeiten, Registrierung öffnen.
 - **Melden:** Besucher können ein Profil anonym melden (Grund und Details, begrenzt pro Adresse).
 - **Statistik-Extras:** Export als CSV, Live-Zähler „gerade auf deiner Seite“ (letzte 5 Minuten).
+- **Community:** öffentliche Entdecken-Seite `/explore` mit Rangliste (beliebt in 7 Tagen, meiste Likes, neu), Nischen-Filter und Suche; Profil-Likes (einmal pro Person, nur nach echtem Seitenaufruf, Bots werden abgewiesen); Aliase, also weitere Namen, die auf das Profil weiterleiten (Free 1, Pro 3, Legend 5).
+- **Weitere Widgets:** Countdown, lokale Uhrzeit mit Zeitzone, Textkarte; Inhaltswarnung vor dem Profil.
+- **Einladungen:** Ist die Registrierung geschlossen, kommen neue Leute mit Einladungscode rein (Admin → Einladungen, Link füllt den Code aus, jeder Code gilt einmal).
+- **Konto-Werkzeuge:** Look als Code teilen und übernehmen, alle Daten als JSON herunterladen, Konto selbst löschen, 7 Tage Sperre zwischen Namensänderungen.
+- **Owner-Werkzeuge:** Ankündigungs-Banner im Dashboard aller Nutzer, Discord-Webhook für neue Konten und Meldungen.
 - **Konten:** Das erste Konto wird Owner (Plan Legend, OG-Badge). Danach ist die Registrierung geschlossen, bis der Owner sie unter Einstellungen → Plattform öffnet.
 
 ## Technik

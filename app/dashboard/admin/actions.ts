@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/auth';
 import { deleteUserData } from '@/lib/admin';
+import { createInvites, deleteInvite, notifyOwner } from '@/lib/community';
 import { getProfile, getUserById, saveProfile, setSetting } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import type { Result } from '../actions';
@@ -100,4 +101,36 @@ export async function adminSignupAction(open: boolean): Promise<Result> {
   await requireOwner();
   await setSetting('signup_open', open ? 'true' : 'false');
   return done(open ? 'Registrierung geöffnet' : 'Registrierung geschlossen');
+}
+
+export async function createInvitesAction(count: number, note: string): Promise<Result & { codes?: string[] }> {
+  const me = await requireOwner();
+  const codes = await createInvites(me.id, Number(count) || 1, String(note || ''));
+  revalidatePath('/dashboard/admin');
+  return { ok: true, message: codes.length === 1 ? 'Einladung erstellt' : `${codes.length} Einladungen erstellt`, codes };
+}
+
+export async function deleteInviteAction(code: string): Promise<Result> {
+  await requireOwner();
+  await deleteInvite(String(code));
+  return done('Einladung gelöscht');
+}
+
+export async function saveAnnouncementAction(input: { text: string; tone: string }): Promise<Result> {
+  await requireOwner();
+  const text = String(input.text || '').trim().slice(0, 240);
+  const tone = ['info', 'good', 'warn'].includes(input.tone) ? input.tone : 'info';
+  // The id changes with the text, so people who closed an older one see the new one.
+  await setSetting('announcement', text ? JSON.stringify({ id: Date.now().toString(36), text, tone }) : '');
+  revalidatePath('/dashboard', 'layout');
+  return { ok: true, message: text ? 'Ankündigung veröffentlicht' : 'Ankündigung entfernt' };
+}
+
+export async function saveWebhookAction(url: string): Promise<Result> {
+  await requireOwner();
+  const u = String(url || '').trim();
+  if (u && !/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(u)) return { ok: false, error: 'Das ist keine Discord-Webhook-Adresse. Sie sieht so aus: https://discord.com/api/webhooks/123…/abc…' };
+  await setSetting('discord_webhook', u);
+  if (u) await notifyOwner('✅ Pulse ist verbunden. Hier landen ab jetzt neue Konten und Meldungen.');
+  return done(u ? 'Webhook gespeichert. Schau in Discord nach der Testnachricht.' : 'Webhook entfernt');
 }

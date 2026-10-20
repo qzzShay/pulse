@@ -6,10 +6,11 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { logout } from '@/app/login/actions';
 import { Icon, Logo } from '@/components/icons';
 import { initials } from '@/lib/profile';
+import type { Announcement } from '@/lib/announcement';
 import { ADMIN_NAV, CRUMBS, NAV, PROFILE_TABS, SEARCH_INDEX } from './nav';
 import { ToastProvider } from './Toast';
 
-type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string; owner?: boolean; openReports?: number }; brand: string };
+type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string; owner?: boolean; openReports?: number }; brand: string; announcement?: Announcement | null };
 
 export function Shell(props: Props) {
   return (
@@ -21,7 +22,21 @@ export function Shell(props: Props) {
   );
 }
 
-function ShellInner({ children, user, brand }: Props) {
+function AnnouncementBar({ a }: { a: Announcement }) {
+  const key = `pulse-ann-${a.id}`;
+  const [hidden, setHidden] = useState(true);
+  useEffect(() => { try { setHidden(localStorage.getItem(key) === '1'); } catch { setHidden(false); } }, [key]);
+  if (hidden) return null;
+  return (
+    <div className={`ann ann-${a.tone}`} role="status">
+      <Icon name={a.tone === 'warn' ? 'bolt' : 'sparkles'} />
+      <span>{a.text}</span>
+      <button type="button" className="icon-btn" aria-label="Ankündigung schließen" onClick={() => { setHidden(true); try { localStorage.setItem(key, '1'); } catch { /* ignore */ } }}><Icon name="x" /></button>
+    </div>
+  );
+}
+
+function ShellInner({ children, user, brand, announcement }: Props) {
   const path = usePathname();
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
@@ -116,7 +131,7 @@ function ShellInner({ children, user, brand }: Props) {
             Profil ansehen<span className="ico-pill"><Icon name="eye" /></span>
           </a>
         </header>
-        <main className="content">{children}</main>
+        <main className="content">{announcement && <AnnouncementBar a={announcement} />}{children}</main>
       </div>
       {search && <SearchDialog onClose={() => setSearch(false)} />}
     </div>

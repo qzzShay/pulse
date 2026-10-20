@@ -44,7 +44,7 @@ export function sourceOf(referrer: string, explicit?: string | null) {
   try { return new URL(s).hostname.replace(/^www\./, ''); } catch { return explicit ? s.slice(0, 30) : 'other'; }
 }
 
-function visitorId(userId: number, ip: string, ua: string) {
+export function visitorId(userId: number, ip: string, ua: string) {
   const day = new Date().toISOString().slice(0, 10);
   const salt = process.env.SESSION_SECRET || 'dev';
   return createHash('sha256').update(`${salt}|${userId}|${day}|${ip}|${ua}`).digest('hex').slice(0, 24);

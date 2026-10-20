@@ -1,6 +1,6 @@
 import { normalizeUrl, type EditableLink } from '@/lib/links';
 import { detectMusic } from '@/lib/music';
-import { applyNiche, LOOKS, profileSchema, usernameError, type Profile } from '@/lib/profile';
+import { applyNiche, decodeLook, LOOKS, profileSchema, usernameError, type Profile } from '@/lib/profile';
 
 type MusicMeta = ReturnType<typeof detectMusic> & { title: string; artist: string; cover: string };
 import { getState, update } from '../store';
@@ -129,4 +129,12 @@ export async function setSignupOpenAction(open: boolean): Promise<Result> {
   await wait();
   update(() => ({ signupOpen: open }));
   return { ok: true, message: open ? 'Registrierung geöffnet' : 'Registrierung geschlossen' };
+}
+
+export async function applyLookAction(code: string): Promise<Result> {
+  await wait();
+  const look = decodeLook(code);
+  if (!look) return { ok: false, error: 'Dieser Code ist ungültig. Er beginnt mit PULSE1-.' };
+  update(s => ({ profile: profileSchema.parse({ ...s.profile, ...look }) }));
+  return { ok: true, message: 'Look übernommen' };
 }

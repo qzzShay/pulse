@@ -5,7 +5,7 @@ import { normalizeUrl } from '@/lib/links';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { usernameError } from '@/lib/profile';
 import {
-  AdminPage, AnalyticsPage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
+  AdminPage, AnalyticsPage, ExplorePage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
 } from './pages';
 import { nav, parseUrl, useUrl } from './router';
 import { getState, reset, update, useDemo } from './store';
@@ -21,6 +21,13 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (u.startsWith('/api/live/twitch')) return json({ live: false });
   if (u.startsWith('/api/stats/live')) return json({ live: 3 });
   if (u.startsWith('/api/report')) return json({ ok: true });
+  if (u.startsWith('/api/like')) {
+    if (init?.method === 'POST') {
+      const like = JSON.parse(String(init.body)).like === true;
+      update(s => ({ liked: like, likes: s.likes + (like === s.liked ? 0 : like ? 1 : -1) }));
+    }
+    return json({ count: getState().likes, liked: getState().liked });
+  }
   if (u.startsWith('/api/username')) {
     const name = new URLSearchParams(u.split('?')[1]).get('name') || '';
     const error = usernameError(name) ?? (RESERVED_USERNAMES.has(name) ? 'Dieser Name ist für die Plattform reserviert.' : null);
@@ -59,9 +66,10 @@ document.addEventListener('click', e => {
 
 function Router() {
   const url = useUrl();
-  const { user, profile, admin } = useDemo();
+  const { user, profile, admin, announcement } = useDemo();
   const { path, params } = parseUrl(url);
   if (path === '/' || path === '/login') return <LandingPage />;
+  if (path === '/explore') return <ExplorePage />;
   if (path.startsWith('/dashboard')) {
     const page = path === '/dashboard' ? <OverviewPage />
       : path === '/dashboard/analytics' ? <AnalyticsPage params={params} />
@@ -75,7 +83,7 @@ function Router() {
       : path === '/dashboard/admin' ? <AdminPage params={params} />
       : <OverviewPage />;
     return (
-      <Shell brand={BRAND} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner: true, openReports: admin.reports.filter(r => r.status === 'open').length }}>
+      <Shell brand={BRAND} announcement={announcement} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner: true, openReports: admin.reports.filter(r => r.status === 'open').length }}>
         {page}
       </Shell>
     );

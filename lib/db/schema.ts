@@ -18,6 +18,10 @@ export const users = sqliteTable('users', {
   sessionVersion: integer('session_version').notNull().default(0),
   /** Badges the owner granted (comma list, e.g. "verified,partner"). */
   granted: text('granted').notNull().default(''),
+  /** Last rename, for the cooldown that stops name hopping. */
+  nameChangedAt: integer('name_changed_at'),
+  /** Invite code used to sign up, if any. */
+  invitedWith: text('invited_with'),
 });
 
 /** All appearance settings live in one JSON document per user (see lib/profile.ts). */
@@ -90,3 +94,28 @@ export type LinkRow = typeof links.$inferSelect;
 export type EventRow = typeof events.$inferSelect;
 export type UploadRow = typeof uploads.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
+
+export const invites = sqliteTable('invites', {
+  code: text('code').primaryKey(),
+  createdBy: integer('created_by').notNull(),
+  note: text('note').notNull().default(''),
+  usedBy: integer('used_by'),
+  usedAt: integer('used_at'),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** Extra names that forward to the main profile. */
+export const aliases = sqliteTable('aliases', {
+  name: text('name').primaryKey(),
+  userId: integer('user_id').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** One like per visitor and profile; `liker` is a keyed hash, never an address. */
+export const likes = sqliteTable('likes', {
+  userId: integer('user_id').notNull(),
+  liker: text('liker').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+export type InviteRow = typeof invites.$inferSelect;

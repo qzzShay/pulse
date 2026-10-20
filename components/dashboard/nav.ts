@@ -23,6 +23,7 @@ export const NAV = [
   ] },
   { section: 'Tools', items: [
     { href: '/dashboard/share', label: 'Teilen', icon: 'share' },
+    { href: '/explore', label: 'Entdecken', icon: 'search' },
   ] },
   { section: 'Konto', items: [
     { href: '/dashboard/settings', label: 'Einstellungen', icon: 'settings' },

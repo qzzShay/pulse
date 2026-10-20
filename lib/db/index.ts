@@ -69,6 +69,26 @@ const SCHEMA_SQL = [
     status TEXT NOT NULL DEFAULT 'open',
     created_at INTEGER NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS invites (
+    code TEXT PRIMARY KEY,
+    created_by INTEGER NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    used_by INTEGER,
+    used_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS aliases (
+    name TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS aliases_user ON aliases(user_id)`,
+  `CREATE TABLE IF NOT EXISTS likes (
+    user_id INTEGER NOT NULL,
+    liker TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, liker)
+  )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -85,6 +105,8 @@ const MIGRATIONS = [
   `ALTER TABLE links ADD COLUMN effect TEXT NOT NULL DEFAULT 'none'`,
   `ALTER TABLE links ADD COLUMN icon TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN granted TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN name_changed_at INTEGER`,
+  `ALTER TABLE users ADD COLUMN invited_with TEXT`,
 ];
 
 async function migrate(client: Client) {

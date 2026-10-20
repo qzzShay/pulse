@@ -6,11 +6,11 @@ import { useToast } from '@/components/dashboard/Toast';
 import { FxStage } from '@/components/fx/FxStage';
 import { Icon } from '@/components/icons';
 import { CURSORS, EFFECTS, LOOKS, NAME_FX, NICHES } from '@/lib/profile';
-import { applyNicheAction } from '../actions';
+import { applyLookAction, applyNicheAction } from '../actions';
 
 const label = (list: readonly (readonly [string, string])[], id?: string) => list.find(x => x[0] === id)?.[1] ?? '–';
 
-export function Templates({ current }: { current: string }) {
+export function Templates({ current, lookCode }: { current: string; lookCode: string }) {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const toast = useToast();
@@ -43,6 +43,8 @@ export function Templates({ current }: { current: string }) {
         ))}
       </div>
 
+      <LookShare code={lookCode} />
+
       {pick && (
         <div className="dialog-bg" onClick={() => !pending && setConfirm(null)}>
           <div className="modal" role="dialog" aria-label={`Vorlage ${pick.label} übernehmen`} onClick={e => e.stopPropagation()}>
@@ -67,5 +69,27 @@ export function Templates({ current }: { current: string }) {
         </div>
       )}
     </>
+  );
+}
+
+function LookShare({ code }: { code: string }) {
+  const [input, setInput] = useState('');
+  const [pending, start] = useTransition();
+  const toast = useToast();
+  const router = useRouter();
+  return (
+    <section className="acc">
+      <div className="acc-head"><div><h2>Look teilen</h2><p>Dein Look als Code: Farben, Karte, Hintergrund, Effekte und Schrift. Texte, Bilder und Links sind nicht dabei. Gib ihn Freunden oder speichere ihn als Sicherung.</p></div></div>
+      <div className="look-code">
+        <code className="mono">{code}</code>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => navigator.clipboard?.writeText(code).then(() => toast('Code kopiert'), () => toast('Kopieren ging nicht. Markiere den Code von Hand.', { error: true }))}><Icon name="copy" />Kopieren</button>
+      </div>
+      <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); start(async () => { const res = await applyLookAction(input); if (!res.ok) toast(res.error, { error: true }); else { toast('Look übernommen'); setInput(''); router.refresh(); } }); }}>
+        <label className="field" htmlFor="look-in" style={{ flex: '1 1 320px' }}>Code von jemand anderem einfügen
+          <input className="in mono" id="look-in" value={input} onChange={e => setInput(e.target.value.trim())} placeholder="PULSE1-…" autoCapitalize="off" spellCheck={false} />
+        </label>
+        <button type="submit" className="btn btn-white btn-sm" disabled={pending || !input.startsWith('PULSE1-')}>{pending ? 'Übernimmt …' : 'Übernehmen'}</button>
+      </form>
+    </section>
   );
 }

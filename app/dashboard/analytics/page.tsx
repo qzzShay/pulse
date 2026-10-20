@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { LiveCount } from '@/components/dashboard/LiveCount';
 import { Icon } from '@/components/icons';
 import { liveVisitors, report, type Range } from '@/lib/analytics';
+import { likeCount, likesSince } from '@/lib/community';
 import { requireUser } from '@/lib/auth';
 import { SITE_HOST } from '@/lib/config';
 import { getLinks } from '@/lib/data';
@@ -25,7 +26,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const range = ([1, 7, 30, 90].includes(Number(sp.range)) ? Number(sp.range) : 30) as Range;
   const own = sp.own === '1';
-  const [r, links, live] = await Promise.all([report(user.id, range, own), getLinks(user.id), liveVisitors(user.id)]);
+  const [r, links, live, likes, newLikes] = await Promise.all([report(user.id, range, own), getLinks(user.id), liveVisitors(user.id), likeCount(user.id), likesSince(user.id, Date.now() - range * 864e5)]);
   const q = (patch: Record<string, string | number>) => {
     const p = new URLSearchParams({ range: String(range), ...(own ? { own: '1' } : {}) });
     for (const [k, v] of Object.entries(patch)) { if (v === '') p.delete(k); else p.set(k, String(v)); }
@@ -50,6 +51,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           </nav>
           <a className="btn btn-ghost btn-sm" href={`/dashboard/analytics/export?range=${range}`} download><Icon name="download" />CSV exportieren</a>
           <LiveCount initial={live} />
+          <span className="pill pill-dim live-count"><Icon name="heart" />{likes} {likes === 1 ? 'Like' : 'Likes'}{newLikes > 0 && ` · +${newLikes} im Zeitraum`}</span>
         </div>
       </div>
 

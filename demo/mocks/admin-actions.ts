@@ -49,3 +49,29 @@ export async function adminSignupAction(open: boolean): Promise<Result> {
   await wait(); update(() => ({ signupOpen: open }));
   return { ok: true, message: open ? 'Registrierung geöffnet' : 'Registrierung geschlossen' };
 }
+
+export async function createInvitesAction(count: number, note: string): Promise<Result> {
+  await wait();
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const make = () => Array.from(crypto.getRandomValues(new Uint8Array(10)), b => A[b % A.length]).join('').replace(/^(.{5})/, '$1-');
+  const rows = Array.from({ length: Math.max(1, Math.min(50, count)) }, () => ({ code: make(), note, usedAt: null, createdAt: Date.now(), usedBy: null }));
+  update(s => ({ invites: [...rows, ...s.invites] }));
+  return { ok: true, message: rows.length === 1 ? 'Einladung erstellt' : `${rows.length} Einladungen erstellt` };
+}
+
+export async function deleteInviteAction(code: string): Promise<Result> {
+  await wait(); update(s => ({ invites: s.invites.filter(i => i.code !== code) }));
+  return { ok: true, message: 'Einladung gelöscht' };
+}
+
+export async function saveAnnouncementAction(input: { text: string; tone: 'info' | 'good' | 'warn' }): Promise<Result> {
+  await wait();
+  const text = input.text.trim();
+  update(() => ({ announcement: text ? { id: Date.now().toString(36), text, tone: input.tone } : null }));
+  return { ok: true, message: text ? 'Ankündigung veröffentlicht' : 'Ankündigung entfernt' };
+}
+
+export async function saveWebhookAction(url: string): Promise<Result> {
+  await wait(); update(() => ({ webhook: url.trim() }));
+  return { ok: true, message: 'Gespeichert. In der App kommt jetzt eine Testnachricht in Discord an.' };
+}

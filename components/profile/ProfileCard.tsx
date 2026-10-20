@@ -7,6 +7,7 @@ import { platformFor, type PublicLink } from '@/lib/links';
 import { platformByKey } from '@/lib/platforms';
 import { accent2, initials, inkFor, rarity, type Profile } from '@/lib/profile';
 import { DiscordPresence } from './DiscordPresence';
+import { Countdown, LikeButton, LocalClock, TextCard } from './Extras';
 import { MusicPlayer } from './MusicPlayer';
 import { Badges, Connections, iconColor, LiveBanner, useTwitchLive } from './ProfileParts';
 import { discordAvatar, useLanyard } from './useLanyard';
@@ -24,6 +25,9 @@ type Props = {
   preview?: boolean;
   /** Audio element for file songs, shared so the enter screen can start playback. */
   audio?: HTMLAudioElement | null;
+  /** Like count from the server and the signed view token the like request needs. */
+  likes?: number;
+  viewToken?: string;
 };
 
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*<>/';
@@ -74,7 +78,7 @@ function useTypewriter(lines: string[], active: boolean) {
   return text;
 }
 
-export function ProfileCard({ profile: p, links, user, host, preview = false, audio }: Props) {
+export function ProfileCard({ profile: p, links, user, host, preview = false, audio, likes = 0, viewToken }: Props) {
   const name = p.displayName || user.username;
   const { shown, replay } = useDecrypt(name, p.nameFx === 'decrypt');
   const r = rarity(user.username);
@@ -133,8 +137,11 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
 
       {p.music.source && <MusicPlayer music={p.music} audio={audio} preview={preview} />}
 
-      {(W.listening.on || W.discord.on || W.video.on || W.gamer.on) && (
+      {(W.listening.on || W.discord.on || W.video.on || W.gamer.on || W.countdown.on || W.clock.on || W.text.on) && (
         <div className="pwidgets">
+          {W.text.on && <TextCard w={W.text} />}
+          {W.countdown.on && <Countdown w={W.countdown} />}
+          {W.clock.on && <LocalClock w={W.clock} />}
           {W.gamer.on && (
             <div className="pw">
               <span className="pw-art"><Icon name="trophy" /></span>
@@ -193,7 +200,10 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
       )}
 
       <div className="pfoot">
-        {p.showViews ? <span><Icon name="eye" />{user.views.toLocaleString('de-DE')}</span> : <span />}
+        <span className="pfoot-l">
+          {p.showViews && <span><Icon name="eye" />{user.views.toLocaleString('de-DE')}</span>}
+          {p.showLikes && <LikeButton username={user.username} token={viewToken} initial={likes} preview={preview} />}
+        </span>
         <span>{host}/{user.username}</span>
       </div>
     </article>

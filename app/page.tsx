@@ -14,6 +14,7 @@ export default async function Home() {
       <header className="land-nav">
         <Link href="/" className="brand"><Logo />{BRAND}</Link>
         <nav>
+          <Link className="btn btn-ghost btn-sm" href="/explore">Entdecken</Link>
           {uid ? <Link className="btn btn-white btn-sm" href="/dashboard">Zum Dashboard</Link> : (
             <>
               <Link className="btn btn-ghost btn-sm" href="/login">Anmelden</Link>

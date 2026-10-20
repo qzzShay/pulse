@@ -128,6 +128,12 @@ export const profileSchema = z.object({
   /** Own cursor image (small PNG or GIF). */
   cursorImage: z.string().max(500).default(''),
   enterScreen: z.boolean().default(true),
+  /** Listed on the public Explore page. */
+  discoverable: z.boolean().default(true),
+  /** Heart button with like count on the card. */
+  showLikes: z.boolean().default(true),
+  /** Visitors confirm a warning before the profile opens (e.g. 18+, flashing lights). */
+  contentWarning: z.object({ on: z.boolean().default(false), text: z.string().max(120).default('') }).default({}),
   showViews: z.boolean().default(true),
   socialRow: z.boolean().default(false),
 
@@ -178,6 +184,9 @@ export const profileSchema = z.object({
     video: z.object({ on: z.boolean().default(false), title: z.string().max(80).default(''), views: z.string().max(12).default(''), url: z.string().max(300).default('') }).default({}),
     gamer: z.object({ on: z.boolean().default(false), game: z.string().max(40).default(''), rank: z.string().max(30).default(''), platform: z.string().max(40).default('') }).default({}),
     gallery: z.object({ on: z.boolean().default(false), images: z.array(z.string().max(500)).max(12).default([]) }).default({}),
+    countdown: z.object({ on: z.boolean().default(false), title: z.string().max(40).default(''), at: z.number().nullable().default(null), done: z.string().max(40).default('') }).default({}),
+    clock: z.object({ on: z.boolean().default(false), tz: z.string().max(40).default('Europe/Berlin'), label: z.string().max(30).default('') }).default({}),
+    text: z.object({ on: z.boolean().default(false), title: z.string().max(40).default(''), body: z.string().max(600).default('') }).default({}),
   }).default({}),
 });
 
@@ -202,7 +211,7 @@ export type Niche = {
   id: string;
   label: string;
   tagline: string;
-  preset: Partial<Profile>;
+  preset: Partial<Omit<Profile, 'widgets'>> & { widgets?: Partial<Profile['widgets']> };
 };
 
 export const NICHES: Niche[] = [
@@ -357,4 +366,30 @@ export const accent2 = (hex: string) => `rgb(${shiftHue(hexRgb(hex), 50).join(',
 
 export function initials(s: string) {
   return (s.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2) || '?').toUpperCase();
+}
+
+/* ---------- look codes: share an appearance without texts, images or links ---------- */
+
+export const LOOK_KEYS = ['accent', 'look', 'align', 'nameFx', 'nameFont', 'glow', 'tilt', 'background', 'cursor', 'badgeStyle', 'iconStyle', 'connectionsStyle', 'socialRow', 'enterScreen', 'tabAnim'] as const;
+export type LookCode = Pick<Profile, (typeof LOOK_KEYS)[number]>;
+
+const b64 = {
+  enc: (s: string) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+  dec: (s: string) => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/')))),
+};
+
+export function encodeLook(p: Profile) {
+  const look = Object.fromEntries(LOOK_KEYS.map(k => [k, p[k]]));
+  return `PULSE1-${b64.enc(JSON.stringify(look))}`;
+}
+
+/** Parsed look, or null when the code is broken. Unknown keys are dropped. */
+export function decodeLook(code: string): Partial<LookCode> | null {
+  const m = code.trim().match(/^PULSE1-([A-Za-z0-9_-]{8,2000})$/);
+  if (!m) return null;
+  try {
+    const raw = JSON.parse(b64.dec(m[1]));
+    const res = profileSchema.pick(Object.fromEntries(LOOK_KEYS.map(k => [k, true])) as Record<(typeof LOOK_KEYS)[number], true>).partial().safeParse(raw);
+    return res.success ? res.data : null;
+  } catch { return null; }
 }

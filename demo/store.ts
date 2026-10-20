@@ -8,10 +8,13 @@ import { applyNiche, profileSchema, type Profile } from '@/lib/profile';
 export type DemoUser = { id: number; username: string; email: string | null; plan: 'free' | 'pro' | 'legend'; role: 'owner' | 'user'; createdAt: number };
 export type DemoState = {
   user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number;
-  totp: boolean; files: { id: string; kind: string; size: number; createdAt: number; url: string }[]; admin: { users: AdminUser[]; reports: AdminReport[] };
+  totp: boolean; aliases: string[]; likes: number; liked: boolean;
+  invites: { code: string; note: string; usedAt: number | null; createdAt: number; usedBy: string | null }[];
+  announcement: { id: string; text: string; tone: 'info' | 'good' | 'warn' } | null; webhook: string;
+  files: { id: string; kind: string; size: number; createdAt: number; url: string }[]; admin: { users: AdminUser[]; reports: AdminReport[] };
 };
 
-const KEY = 'pulse-demo-v3';
+const KEY = 'pulse-demo-v4';
 const day = 864e5;
 
 function seed(): DemoState {
@@ -31,6 +34,8 @@ function seed(): DemoState {
   profile.bioLines = ['Ranked-Grinderin aus Berlin', 'Live Mo, Mi und Fr ab 19 Uhr', 'Clips, Turniere und Chaos'];
   profile.tabTitle = 'Nova ist live';
   profile.tabAnim = 'scroll';
+  profile.widgets.countdown = { on: true, title: 'Community-Turnier', at: Date.now() + 3 * day + 5 * 3600e3, done: 'Wir sind live!' };
+  profile.widgets.clock = { on: true, tz: 'Europe/Berlin', label: 'Berlin' };
   profile.customBadges = [{ id: 'team', label: 'Team Nova', icon: 'flame', color: '#ffcf5c', on: true }];
   profile.connections = [
     { platform: 'steam', handle: 'nova' }, { platform: 'twitch', handle: 'nova_live' }, { platform: 'valorant', handle: 'Nova#EUW' },
@@ -51,6 +56,12 @@ function seed(): DemoState {
   return {
     user: { id: 42, username: 'nova', email: null, plan: 'legend', role: 'owner', createdAt: now - 21 * day },
     profile, links, signupOpen: false, clicks: {}, version: 0, totp: false, files: [],
+    aliases: ['n0va'], likes: 248, liked: false, webhook: '',
+    announcement: { id: 'demo1', text: 'Neu: Likes, Entdecken-Seite, Countdown und Einladungscodes.', tone: 'good' },
+    invites: [
+      { code: 'K7QXM-P3RTA', note: 'Discord-Server', usedAt: null, createdAt: now - 2 * day, usedBy: null },
+      { code: 'B9WEH-2LMZS', note: 'Discord-Server', usedAt: now - day, createdAt: now - 2 * day, usedBy: 'mira' },
+    ],
     admin: {
       users: [
         { id: 42, username: 'nova', email: null, plan: 'legend', role: 'owner', createdAt: now - 21 * day, bannedReason: null, granted: [], totp: false, views: 1840, links: 6, storage: 0 },

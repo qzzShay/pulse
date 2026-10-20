@@ -8,9 +8,9 @@ import { Icon, Logo } from '@/components/icons';
 import { rarity, usernameError } from '@/lib/profile';
 import { login, register } from './actions';
 
-type Props = { mode: 'login' | 'register'; signupOpen: boolean; firstUser: boolean; next: string; initialName: string; brand: string; host: string };
+type Props = { mode: 'login' | 'register'; signupOpen: boolean; invite?: string; firstUser: boolean; next: string; initialName: string; brand: string; host: string };
 
-export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand, host }: Props) {
+export function AuthForm({ mode, signupOpen, invite: invite0 = '', firstUser, next, initialName, brand, host }: Props) {
   const [state, action, pending] = useActionState(mode === 'login' ? login : register, undefined);
   const [round, setRound] = useState(0);
   useEffect(() => { if (state) setRound(r => r + 1); }, [state]);
@@ -20,6 +20,7 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
   const [ident, setIdent] = useState('');
   const [pw, setPw] = useState('');
   const [code, setCode] = useState('');
+  const [invite, setInvite] = useState(invite0);
   const r = rarity(name);
   const nameErr = name ? usernameError(name) : null;
 
@@ -61,6 +62,12 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
                 <label className="field" htmlFor="password">Passwort
                   <input className="in" id="password" name="password" type="password" autoComplete="new-password" minLength={8} required />
                 </label>
+                {!signupOpen && (
+                  <label className="field" htmlFor="invite">Einladungscode <span className="hint" style={{ marginTop: -4 }}>Neue Konten gibt es gerade nur mit Einladung</span>
+                    <input className="in mono" id="invite" name="invite" autoCapitalize="characters" spellCheck={false} maxLength={20} required placeholder="ABCDE-FGHJK"
+                      value={invite} onChange={e => setInvite(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))} style={{ letterSpacing: '.08em' }} />
+                  </label>
+                )}
               </>
             ) : (
               <>
@@ -90,7 +97,9 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
           {!firstUser && (
             <p className="muted" style={{ fontSize: 13.5 }}>
               {mode === 'login'
-                ? signupOpen ? <>Noch kein Konto? <Link href="/login?mode=register" style={{ color: '#fff', textDecoration: 'underline' }}>Profil anlegen</Link></> : 'Neue Konten sind gerade nur auf Einladung möglich.'
+                ? signupOpen
+                  ? <>Noch kein Konto? <Link href="/login?mode=register" style={{ color: '#fff', textDecoration: 'underline' }}>Profil anlegen</Link></>
+                  : <>Neue Konten nur auf Einladung. <Link href="/login?mode=register" style={{ color: '#fff', textDecoration: 'underline' }}>Ich habe einen Code</Link></>
                 : <>Schon ein Konto? <Link href="/login" style={{ color: '#fff', textDecoration: 'underline' }}>Anmelden</Link></>}
             </p>
           )}

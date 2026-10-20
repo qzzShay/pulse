@@ -6,17 +6,22 @@ import { useState, useTransition } from 'react';
 import { useToast } from '@/components/dashboard/Toast';
 import { Icon } from '@/components/icons';
 import type { AdminReport, AdminUser } from '@/lib/admin';
+import type { Announcement } from '@/lib/announcement';
 import { REPORT_REASONS } from '@/lib/reports';
 import type { Result } from '../actions';
-import { adminSignupAction, banAction, deleteUserAction, grantBadgeAction, resolveReportAction, setPlanAction, unbanAction } from './actions';
+import { adminSignupAction, createInvitesAction, deleteInviteAction, saveAnnouncementAction, saveWebhookAction, banAction, deleteUserAction, grantBadgeAction, resolveReportAction, setPlanAction, unbanAction } from './actions';
 
 type Stats = { total: number; banned: number; newWeek: number; views: number; clicks: number; bots: number; bytes: number; open: number };
-type Props = { stats: Stats; users: AdminUser[]; reports: AdminReport[]; tab: 'users' | 'reports' | 'done'; q: string; signupOpen: boolean; host: string };
+type Invite = { code: string; note: string; usedAt: number | null; createdAt: number; usedBy: string | null };
+type Props = {
+  stats: Stats; users: AdminUser[]; reports: AdminReport[]; tab: 'users' | 'reports' | 'done' | 'invites' | 'platform'; q: string; signupOpen: boolean; host: string;
+  siteUrl: string; invites: Invite[]; announcement: Announcement | null; webhook: string;
+};
 
 const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1).replace('.', ',')} MB`;
 const date = (t: number) => new Date(t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
-export function AdminPanel({ stats, users, reports, tab, q, signupOpen, host }: Props) {
+export function AdminPanel({ stats, users, reports, tab, q, signupOpen, host, siteUrl, invites, announcement, webhook }: Props) {
   const [pending, start] = useTransition();
   const [query, setQuery] = useState(q);
   const [open, setOpen] = useState(signupOpen);
@@ -58,9 +63,13 @@ export function AdminPanel({ stats, users, reports, tab, q, signupOpen, host }: 
         <Link href="/dashboard/admin" aria-current={tab === 'users' ? 'page' : undefined}><Icon name="users" />Konten</Link>
         <Link href="/dashboard/admin?tab=reports" aria-current={tab === 'reports' ? 'page' : undefined}><Icon name="flag" />Meldungen{stats.open > 0 && <span className="nav-count" style={{ marginLeft: 6 }}>{stats.open}</span>}</Link>
         <Link href="/dashboard/admin?tab=done" aria-current={tab === 'done' ? 'page' : undefined}><Icon name="check" />Erledigt</Link>
+        <Link href="/dashboard/admin?tab=invites" aria-current={tab === 'invites' ? 'page' : undefined}><Icon name="gift" />Einladungen</Link>
+        <Link href="/dashboard/admin?tab=platform" aria-current={tab === 'platform' ? 'page' : undefined}><Icon name="settings" />Plattform</Link>
       </nav>
 
-      {tab === 'users' ? (
+      {tab === 'invites' ? <Invites invites={invites} siteUrl={siteUrl} run={run} pending={pending} /> : tab === 'platform' ? (
+        <Platform announcement={announcement} webhook={webhook} run={run} pending={pending} />
+      ) : tab === 'users' ? (
         <>
           <form className="toolbar" onSubmit={e => { e.preventDefault(); router.push(`/dashboard/admin?q=${encodeURIComponent(query)}`); }}>
             <input className="in" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, E-Mail oder UID suchen" aria-label="Konten suchen" style={{ maxWidth: 340 }} />
@@ -172,6 +181,75 @@ function UserRow({ u, host, open, onToggle, run, pending }: { u: AdminUser; host
           <p className="hint mono">{host}/{u.username}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+function Invites({ invites, siteUrl, run, pending }: { invites: Invite[]; siteUrl: string; run: (p: Promise<Result>, after?: () => void) => void; pending: boolean }) {
+  const [count, setCount] = useState(1);
+  const [note, setNote] = useState('');
+  const toast = useToast();
+  const copy = (code: string) => navigator.clipboard?.writeText(`${siteUrl}/login?invite=${code}`).then(() => toast('Einladungslink kopiert'), () => {});
+  const free = invites.filter(i => !i.usedBy).length;
+  return (
+    <div className="stack" style={{ gap: 16 }}>
+      <form className="card card-pad stack" onSubmit={e => { e.preventDefault(); run(createInvitesAction(count, note), () => setNote('')); }}>
+        <p className="hint" style={{ margin: 0 }}>Solange die Registrierung geschlossen ist, kommt nur rein, wer einen Code hat. Jeder Code gilt für genau ein Konto. Der Link füllt den Code automatisch aus.</p>
+        <div className="row" style={{ alignItems: 'flex-end' }}>
+          <label className="field" htmlFor="inv-n" style={{ width: 110 }}>Anzahl<input className="in" id="inv-n" type="number" min={1} max={50} value={count} onChange={e => setCount(Math.max(1, Math.min(50, Number(e.target.value) || 1)))} /></label>
+          <label className="field" htmlFor="inv-note" style={{ flex: '1 1 220px' }}>Notiz (optional)<input className="in" id="inv-note" value={note} maxLength={60} onChange={e => setNote(e.target.value)} placeholder="z. B. für den Discord-Server" /></label>
+          <button type="submit" className="btn btn-white btn-sm" disabled={pending}><Icon name="plus" />Erstellen</button>
+        </div>
+      </form>
+      <div className="list">
+        {invites.length === 0 && <div className="empty"><Icon name="gift" /><span>Noch keine Einladungen.</span></div>}
+        {invites.map(i => (
+          <div key={i.code} className={`lrow adm-report${i.usedBy ? ' is-off' : ''}`}>
+            <span className="plat" style={{ background: 'rgba(185,166,255,.14)', color: 'var(--tint)' }}><Icon name="gift" /></span>
+            <div className="lrow-main">
+              <b><span className="mono">{i.code}</span>{i.usedBy ? <span className="pill pill-dim">benutzt von @{i.usedBy}</span> : <span className="pill pill-good">frei</span>}</b>
+              <span className="url">{i.note || 'ohne Notiz'} · erstellt {new Date(i.createdAt).toLocaleDateString('de-DE')}{i.usedAt ? ` · benutzt ${new Date(i.usedAt).toLocaleDateString('de-DE')}` : ''}</span>
+            </div>
+            {!i.usedBy && (
+              <div className="lrow-side">
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => copy(i.code)}><Icon name="copy" />Link</button>
+                <button type="button" className="icon-btn" aria-label="Löschen" disabled={pending} onClick={() => run(deleteInviteAction(i.code))}><Icon name="trash" /></button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="hint">{free} {free === 1 ? 'Code' : 'Codes'} frei.</p>
+    </div>
+  );
+}
+
+function Platform({ announcement, webhook, run, pending }: { announcement: Announcement | null; webhook: string; run: (p: Promise<Result>, after?: () => void) => void; pending: boolean }) {
+  const [text, setText] = useState(announcement?.text ?? '');
+  const [tone, setTone] = useState<Announcement['tone']>(announcement?.tone ?? 'info');
+  const [hook, setHook] = useState(webhook);
+  return (
+    <div className="stack" style={{ gap: 16 }}>
+      <form className="card card-pad stack" onSubmit={e => { e.preventDefault(); run(saveAnnouncementAction({ text, tone })); }}>
+        <b>Ankündigung</b>
+        <p className="hint" style={{ margin: 0 }}>Erscheint oben im Dashboard aller Nutzer, z. B. für neue Funktionen oder Wartung. Jede Person kann sie wegklicken.</p>
+        <textarea className="in" rows={2} maxLength={240} value={text} onChange={e => setText(e.target.value)} placeholder="z. B. Neu: Likes und die Entdecken-Seite!" aria-label="Text der Ankündigung" />
+        <div className="chips" role="radiogroup">
+          {([['info', 'Info'], ['good', 'Neu'], ['warn', 'Wichtig']] as const).map(([k, l]) => (
+            <label key={k} className="chip" htmlFor={`tone-${k}`}><input type="radio" id={`tone-${k}`} name="tone" checked={tone === k} onChange={() => setTone(k)} /><span>{l}</span></label>
+          ))}
+        </div>
+        <div className="row">
+          <button type="submit" className="btn btn-white btn-sm" disabled={pending}>{text.trim() ? 'Veröffentlichen' : 'Entfernen'}</button>
+          {announcement && <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => { setText(''); run(saveAnnouncementAction({ text: '', tone })); }}>Ankündigung entfernen</button>}
+        </div>
+      </form>
+      <form className="card card-pad stack" onSubmit={e => { e.preventDefault(); run(saveWebhookAction(hook)); }}>
+        <b>Discord-Benachrichtigungen</b>
+        <p className="hint" style={{ margin: 0 }}>Bei neuen Konten und Meldungen schickt Pulse eine Nachricht in deinen Discord-Kanal. Webhook anlegen: Kanal-Einstellungen → Integrationen → Webhooks → Neuer Webhook → URL kopieren.</p>
+        <input className="in mono" value={hook} onChange={e => setHook(e.target.value.trim())} placeholder="https://discord.com/api/webhooks/…" aria-label="Webhook-Adresse" autoCapitalize="off" spellCheck={false} />
+        <div><button type="submit" className="btn btn-white btn-sm" disabled={pending || hook === webhook}>{hook ? 'Speichern und testen' : 'Entfernen'}</button></div>
+      </form>
     </div>
   );
 }

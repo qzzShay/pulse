@@ -76,5 +76,7 @@ export async function deleteUserData(userId: number) {
   await db.delete(links).where(eq(links.userId, userId));
   await db.delete(profiles).where(eq(profiles.userId, userId));
   await db.delete(reports).where(eq(reports.userId, userId));
+  await db.delete(schema.aliases).where(eq(schema.aliases.userId, userId));
+  await db.delete(schema.likes).where(eq(schema.likes.userId, userId));
   await db.delete(users).where(eq(users.id, userId));
 }

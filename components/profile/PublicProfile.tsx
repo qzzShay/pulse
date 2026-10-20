@@ -7,6 +7,7 @@ import type { Profile } from '@/lib/profile';
 import { musicBus } from './MusicPlayer';
 import { ProfileCard, type CardUser } from './ProfileCard';
 import { ReportButton } from './ReportButton';
+import { ContentWarning } from './Extras';
 
 /** Animates the browser tab title: typed out letter by letter, or scrolling like a marquee. */
 function useTabTitle(title: string, anim: Profile['tabAnim']) {
@@ -36,9 +37,10 @@ function useFavicon(src: string | null) {
   }, [src]);
 }
 
-type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string };
+type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string; likes?: number };
 
-export function PublicProfile({ profile, links, user, host, brand, viewToken }: Props) {
+export function PublicProfile({ profile, links, user, host, brand, viewToken, likes = 0 }: Props) {
+  const [warned, setWarned] = useState(!profile.contentWarning.on);
   const [entered, setEntered] = useState(!profile.enterScreen);
   const [gone, setGone] = useState(!profile.enterScreen);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
@@ -77,11 +79,12 @@ export function PublicProfile({ profile, links, user, host, brand, viewToken }: 
   return (
     <main className="prof-page">
       <FxStage effect={profile.background} cursor={profile.cursor} accent={profile.accent} tilt={profile.tilt} media={profile.media} cursorImage={profile.cursorImage}>
-        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} />
+        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} likes={likes} viewToken={viewToken} />
         <div className="prof-foot"><a href="/">{brand}</a></div>
       </FxStage>
       <ReportButton username={user.username} />
-      {!gone && (
+      {!warned && <ContentWarning text={profile.contentWarning.text} onAccept={() => setWarned(true)} />}
+      {warned && !gone && (
         <button type="button" className={`enter${entered ? ' gone' : ''}`} onClick={enter} autoFocus>
           <span>Klicke, um einzutreten<small>{host}/{user.username}</small></span>
         </button>

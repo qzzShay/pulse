@@ -7,7 +7,7 @@ export const SITE_HOST = SITE_URL.replace(/^https?:\/\//, '');
 
 /** Usernames that would collide with app routes. */
 export const RESERVED_USERNAMES = new Set([
-  'api', 'r', 'u', 'login', 'logout', 'signup', 'dashboard', 'admin', 'settings', 'help', 'static',
+  'api', 'r', 'u', 'avatar', 'explore', 'entdecken', 'top', 'invite', 'login', 'logout', 'signup', 'dashboard', 'admin', 'settings', 'help', 'static',
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml', 'about', 'pricing', 'terms', 'privacy',
   // Names that impersonate the platform or staff.
   'root', 'system', 'staff', 'team', 'support', 'mod', 'mods', 'moderator', 'official', 'security', 'billing',
