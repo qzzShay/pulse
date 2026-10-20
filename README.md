@@ -42,7 +42,7 @@ Beim ersten Aufruf von `/login` legst du dein Owner-Konto an. Die Tabellen werde
 
 ## Deployment
 
-**Mit eigenem Server oder VPS (am einfachsten für den Anfang):** `npm run build && npm start` hinter einem Reverse-Proxy (z. B. Caddy). Die SQLite-Datei liegt in `data/` und muss auf einem dauerhaften Laufwerk liegen.
+**Mit eigenem Server oder VPS:** Docker + Caddy mit automatischem HTTPS, eingerichtet mit einem Befehl. Siehe [DEPLOY.md](DEPLOY.md).
 
 **Mit Vercel:** Vercel hat kein dauerhaftes Dateisystem. Lege eine kostenlose Turso-Datenbank an und setze `DATABASE_URL=libsql://…` und `DATABASE_AUTH_TOKEN`. Länder in der Statistik kommen dann automatisch über den Header `x-vercel-ip-country`.
 

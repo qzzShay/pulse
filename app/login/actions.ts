@@ -7,6 +7,8 @@ import { RESERVED_USERNAMES } from '@/lib/config';
 import { getUserByUsername, saveProfile, signupOpen, userCount } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { profileSchema, usernameError } from '@/lib/profile';
+import { limited } from '@/lib/ratelimit';
+import { requestInfo } from '@/lib/request';
 
 export type AuthState = { error?: string } | undefined;
 
@@ -19,6 +21,8 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
   const ident = String(form.get('username') || '').trim().toLowerCase();
   const password = String(form.get('password') || '');
   if (!ident || !password) return { error: 'Gib Name und Passwort ein.' };
+  const { ip } = await requestInfo();
+  if (limited(`login:${ip}`, 10, 15 * 60 * 1000)) return { error: 'Zu viele Versuche. Warte 15 Minuten und versuch es dann noch einmal.' };
   await ready();
   const user = ident.includes('@')
     ? (await db.select().from(schema.users).where(eq(schema.users.email, ident)).limit(1))[0]
@@ -30,6 +34,8 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
 
 export async function register(_: AuthState, form: FormData): Promise<AuthState> {
   if (!(await signupOpen())) return { error: 'Die Registrierung ist gerade geschlossen.' };
+  const { ip } = await requestInfo();
+  if (limited(`signup:${ip}`, 5, 60 * 60 * 1000)) return { error: 'Zu viele neue Konten von dieser Verbindung. Versuch es in einer Stunde noch einmal.' };
   const username = String(form.get('username') || '').trim().toLowerCase();
   const email = String(form.get('email') || '').trim().toLowerCase() || null;
   const password = String(form.get('password') || '');

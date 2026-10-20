@@ -1,0 +1,36 @@
+# Pulse on a VPS: the app plus Caddy, which fetches and renews HTTPS certificates automatically.
+# Settings come from .env (created by deploy/setup.sh).
+
+services:
+  app:
+    build: .
+    image: pulse:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: file:/app/data/pulse.db
+    volumes:
+      - ./data:/app/data
+      - ./backups:/app/backups
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
