@@ -13,6 +13,10 @@ Link-in-Bio-Plattform für Creator, Gamer, Artists, Musiker:innen, Streamer und 
   - Vorlagen für Nischen: Gaming, Artist, Musik, Streamer, Developer, VRChat
   - Badges, Teilen (QR-Code, Links mit `?ref=`-Quelle), Einstellungen
   - Einstellungssuche mit ⌘K / Strg+K
+- **Verbindungen wie bei Discord:** Discord-Live-Status über [Lanyard](https://github.com/Phineas/lanyard) (Status, Spiele mit Laufzeit, eigener Status, Spotify mit Cover und Fortschritt, per WebSocket in Echtzeit), über 60 Plattform-Konten mit echten Marken-Logos ([Simple Icons](https://simpleicons.org)), Twitch-LIVE-Banner über die offizielle Twitch-API.
+- **Profilsong** per Link von YouTube (eigener Player, Mini-Video bleibt sichtbar), SoundCloud, Spotify oder als Audiodatei, Titel und Cover werden automatisch geladen; synchroner Liedtext für YouTube und Dateien.
+- **Badges** mit eigener Farbe je Badge, drei Darstellungsarten, bis zu 6 eigene Badges mit Symbol und Farbe; Owner-, OG- und Premium-Badges werden serverseitig geprüft.
+- **Bot-Schutz:** Proof-of-Work bei Registrierung und Login (ohne Captcha-Dienst, funktioniert auch über HTTP), Honeypot-Feld, Limits pro IP und insgesamt, signierte Aufruf-Tokens, Klicks zählen nur nach einem echten Seitenaufruf und einmal pro 30 Minuten, Erkennung automatisierter Browser, harte Grenzen gegen Fluten der Datenbank, begrenzte Namensprüfung.
 - **Statistik ohne Rauschen:** Klicks laufen über `/r/<id>`. Bots (User-Agent), Link-Vorschauen, Reloads innerhalb von 30 Minuten und Aufrufe der eigenen Person werden getrennt gespeichert und nicht mitgezählt. Besucher werden über einen täglich wechselnden Hash gezählt, IP-Adressen werden nicht gespeichert.
 - **Konten:** Das erste Konto wird Owner (Plan Legend, OG-Badge). Danach ist die Registrierung geschlossen, bis der Owner sie unter Einstellungen → Plattform öffnet.
 
@@ -39,6 +43,7 @@ Beim ersten Aufruf von `/login` legst du dein Owner-Konto an. Die Tabellen werde
 | `DATABASE_AUTH_TOKEN` | Nur für Turso. |
 | `SITE_URL` | Öffentliche Adresse, z. B. `https://pulse.gg`. Bestimmt die angezeigten Profil-Links. |
 | `BRAND` | Name der Plattform in Logo und Titeln. |
+| `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` | Optional, für die Twitch-Live-Anzeige. |
 
 ## Deployment
 

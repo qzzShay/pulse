@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { and, eq, gte } from 'drizzle-orm';
 import { db, ready, schema } from './db';
+import { limited } from './ratelimit';
 
 const { events } = schema;
 
@@ -18,6 +19,10 @@ export type TrackInput = {
   source?: string | null;
   country?: string | null;
   isOwner: boolean;
+  /** Views: the signed token from the rendered page was valid. */
+  tokenOk?: boolean;
+  /** The browser reported automation (navigator.webdriver). */
+  automation?: boolean;
 };
 
 export function deviceOf(ua: string) {
@@ -45,17 +50,36 @@ function visitorId(userId: number, ip: string, ua: string) {
   return createHash('sha256').update(`${salt}|${userId}|${day}|${ip}|${ua}`).digest('hex').slice(0, 24);
 }
 
+/** A click only counts when the same visitor opened the profile within this window. */
+const VIEW_BEFORE_CLICK = 3 * 60 * 60 * 1000;
+
 export async function track(input: TrackInput) {
   await ready();
   const now = Date.now();
   const visitor = visitorId(input.userId, input.ip, input.userAgent);
-  const isBot = !input.userAgent || BOT_RE.test(input.userAgent);
+  // Bot signals: crawler user agent, automated browser, forged view, or too many hits from one address.
+  let isBot = !input.userAgent || BOT_RE.test(input.userAgent) || !!input.automation;
+  if (input.type === 'view' && !input.tokenOk) isBot = true;
+  if (!isBot && input.type === 'view' && limited(`view:${input.ip}`, 60, 60 * 60 * 1000)) isBot = true;
+  if (!isBot && input.type === 'click' && limited(`click:${input.ip}`, 40, 10 * 60 * 1000)) isBot = true;
+
   let isRepeat = false;
   if (!isBot) {
-    const recent = await db.select({ id: events.id }).from(events)
-      .where(and(eq(events.userId, input.userId), eq(events.visitor, visitor), eq(events.type, input.type), gte(events.createdAt, now - REPEAT_WINDOW)))
-      .limit(input.type === 'view' ? 1 : 50);
-    if (input.type === 'view') isRepeat = recent.length > 0;
+    if (input.type === 'view') {
+      const recent = await db.select({ id: events.id }).from(events)
+        .where(and(eq(events.userId, input.userId), eq(events.visitor, visitor), eq(events.type, 'view'), gte(events.createdAt, now - REPEAT_WINDOW)))
+        .limit(1);
+      isRepeat = recent.length > 0;
+    } else {
+      // Same link again within 30 minutes, or a click without having seen the profile: not counted.
+      const again = await db.select({ id: events.id }).from(events)
+        .where(and(eq(events.userId, input.userId), eq(events.visitor, visitor), eq(events.type, 'click'), eq(events.linkId, input.linkId ?? ''), gte(events.createdAt, now - REPEAT_WINDOW)))
+        .limit(1);
+      const seen = await db.select({ id: events.id }).from(events)
+        .where(and(eq(events.userId, input.userId), eq(events.visitor, visitor), eq(events.type, 'view'), eq(events.isBot, false), gte(events.createdAt, now - VIEW_BEFORE_CLICK)))
+        .limit(1);
+      isRepeat = again.length > 0 || seen.length === 0;
+    }
   }
   await db.insert(events).values({
     userId: input.userId,
@@ -117,7 +141,7 @@ export async function report(userId: number, range: Range, includeOwn = false): 
   for (const e of rows) {
     const inCurrent = e.createdAt >= curStart;
     const counted = !e.isBot && (includeOwn || !e.isOwner);
-    if (inCurrent && (e.isBot || (e.type === 'view' && e.isRepeat))) totals.filtered++;
+    if (inCurrent && (e.isBot || e.isRepeat)) totals.filtered++;
     if (!counted) continue;
     const series = inCurrent ? current : previous;
     const i = idx(e.createdAt, inCurrent ? curStart : prevStart);
@@ -133,6 +157,7 @@ export async function report(userId: number, range: Range, includeOwn = false): 
       if (inCurrent) { totals.views++; bump(sources, e.referrer); bump(devices, e.device); bump(countries, e.country || '??'); }
       else prevTotals.views++;
     } else {
+      if (e.isRepeat) continue;
       point.clicks++;
       if (inCurrent) {
         totals.clicks++;

@@ -4,6 +4,7 @@ import { PublicProfile } from '@/components/profile/PublicProfile';
 import { totalViews } from '@/lib/analytics';
 import { BRAND, SITE_HOST } from '@/lib/config';
 import { getLinks, getProfile, getUserByUsername, publicLinks } from '@/lib/data';
+import { viewToken } from '@/lib/pow';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,7 @@ export default async function ProfileRoute({ params }: Params) {
       user={{ username: user.username, uid: user.id, views }}
       host={SITE_HOST}
       brand={BRAND}
+      viewToken={viewToken(user.id)}
     />
   );
 }

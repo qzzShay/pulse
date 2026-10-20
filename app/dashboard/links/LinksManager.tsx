@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useToast } from '@/components/dashboard/Toast';
-import { Icon, PLATFORM_ICON } from '@/components/icons';
+import { BrandIcon } from '@/components/BrandIcon';
+import { Icon } from '@/components/icons';
 import { linkState, platformFor, type EditableLink, type LinkState } from '@/lib/links';
 import type { Profile } from '@/lib/profile';
 import {
@@ -203,7 +204,7 @@ function PlatIcon({ url, small }: { url: string; small?: boolean }) {
   const p = platformFor(url);
   return (
     <span className="plat" style={{ background: `color-mix(in srgb, ${p.color} 18%, #111)`, color: p.color, ...(small ? { width: 30, height: 30, borderRadius: 9 } : {}) }}>
-      <Icon name={PLATFORM_ICON[p.key] ?? 'globe'} />
+      <BrandIcon platform={p.key} />
     </span>
   );
 }

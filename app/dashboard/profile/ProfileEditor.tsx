@@ -12,7 +12,8 @@ import type { PublicLink } from '@/lib/links';
 import {
   accent2, ACCENTS, ALIGNS, contrast, CURSORS, EFFECTS, FONTS, hexRgb, inkFor, LOOKS, NAME_FX, NICHES, type Profile,
 } from '@/lib/profile';
-import { saveProfileAction } from '../actions';
+import { detectMusic, SOURCE_LABEL } from '@/lib/music';
+import { resolveMusicAction, saveProfileAction } from '../actions';
 
 type Props = { initial: Profile; links: PublicLink[]; user: CardUser; premium: boolean; host: string; tab: ProfileTab };
 
@@ -26,12 +27,12 @@ export function ProfileEditor({ initial, links, user, premium, host, tab }: Prop
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(saved), [draft, saved]);
 
   useEffect(() => {
-    if (!draft.music.url) { setAudio(null); return; }
+    if (draft.music.source !== 'file' || !draft.music.url) { setAudio(null); return; }
     const a = new Audio(draft.music.url);
     a.loop = true; a.preload = 'none';
     setAudio(a);
     return () => { a.pause(); a.src = ''; };
-  }, [draft.music.url]);
+  }, [draft.music.source, draft.music.url]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => { if (dirty) e.preventDefault(); };
@@ -287,7 +288,12 @@ function TextTab({ draft, set }: TabProps) {
         <div className="field">Effekt<Chips name="nfx" items={NAME_FX} value={draft.nameFx} onChange={v => set('nameFx', v)} /></div>
         <div className="field">Schrift<Chips name="font" items={FONTS} value={draft.nameFont} onChange={v => set('nameFont', v)} /></div>
       </Section>
-      <Section n="03" title="Glow">
+      <Section n="03" title="Symbole">
+        <div className="field">Farbe der Plattform-Logos bei Links und Verbindungen
+          <Chips name="ics" items={[['brand', 'Markenfarben'], ['accent', 'Akzentfarbe'], ['mono', 'Weiß']] as const} value={draft.iconStyle} onChange={v => set('iconStyle', v)} />
+        </div>
+      </Section>
+      <Section n="04" title="Glow">
         <label className="field" htmlFor="glow"><span className="field-row"><span>Stärke</span><span className="hint mono">{draft.glow} %</span></span>
           <input type="range" className="range" id="glow" min={0} max={100} step={5} value={draft.glow} onChange={e => set('glow', Number(e.target.value))} />
         </label>
@@ -297,6 +303,52 @@ function TextTab({ draft, set }: TabProps) {
 }
 
 /* ---------- Musik & Widgets ---------- */
+
+function MusicSection({ draft, set, lines }: TabProps & { lines: number }) {
+  const [url, setUrl] = useState(draft.music.url);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const detected = url.trim() ? detectMusic(url) : null;
+  const m = draft.music;
+  const apply = async () => {
+    if (!url.trim()) { set('music', { ...m, url: '', source: '', mediaId: '', title: '', artist: '', cover: '' }); return; }
+    setBusy(true); setError('');
+    const res = await resolveMusicAction(url.trim());
+    setBusy(false);
+    if (!res.ok) { setError(res.error); return; }
+    set('music', { ...m, url: res.meta.url, source: res.meta.source, mediaId: res.meta.mediaId, title: res.meta.title.slice(0, 100), artist: res.meta.artist.slice(0, 80), cover: res.meta.cover });
+  };
+  return (
+    <Section n="01" title="Profilsong" text="Füge einen Link von YouTube, SoundCloud oder Spotify ein oder die Adresse einer Audiodatei. Titel und Cover holt Pulse automatisch. Der Klick auf den Eintritts-Bildschirm startet den Song.">
+      <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); apply(); }}>
+        <label className="field" htmlFor="m-url" style={{ flex: '1 1 300px' }}>Link zum Song
+          <input className="in mono" id="m-url" value={url} onChange={e => { setUrl(e.target.value); setError(''); }} placeholder="https://youtube.com/watch?v=… · soundcloud.com/… · open.spotify.com/track/… · …/song.mp3" autoCapitalize="off" spellCheck={false} />
+        </label>
+        <button type="submit" className="btn btn-white" disabled={busy || url.trim() === m.url}>{busy ? 'Lädt …' : url.trim() ? 'Übernehmen' : 'Entfernen'}</button>
+      </form>
+      {detected && url.trim() !== m.url && <p className="hint">Erkannt: {SOURCE_LABEL[detected.source]}. Klick auf „Übernehmen“, um Titel und Cover zu laden.</p>}
+      {error && <p className="err">{error}</p>}
+      {m.source && (
+        <div className="music-preview">
+          {m.cover ? <img src={m.cover} alt="" /> : <span className="av" style={{ width: 64, height: 64, borderRadius: 12 }}><Icon name="music" /></span>}
+          <span className="stack" style={{ gap: 8, flex: 1, minWidth: 0 }}>
+            <span className="row" style={{ gap: 8 }}><span className="pill pill-dim">{SOURCE_LABEL[m.source as keyof typeof SOURCE_LABEL]}</span></span>
+            <div className="grid-2">
+              <label className="field" htmlFor="m-title">Titel<input className="in" id="m-title" value={m.title} maxLength={100} onChange={e => set('music', { ...m, title: e.target.value })} /></label>
+              <label className="field" htmlFor="m-artist">Künstler:in<input className="in" id="m-artist" value={m.artist} maxLength={80} onChange={e => set('music', { ...m, artist: e.target.value })} /></label>
+            </div>
+          </span>
+        </div>
+      )}
+      {m.source === 'spotify' && <p className="hint">Spotify zeigt seinen eigenen Player. Besucher ohne Spotify-Login hören 30 Sekunden, mit Login den ganzen Song.</p>}
+      {(m.source === 'file' || m.source === 'youtube') && (
+        <label className="field" htmlFor="m-lrc"><span className="field-row"><span>Liedtext (LRC, optional)</span><span className="hint mono">{lines ? `${lines} Zeilen erkannt` : ''}</span></span>
+          <textarea className="in mono" id="m-lrc" rows={5} value={m.lyrics} onChange={e => set('music', { ...m, lyrics: e.target.value })} placeholder={'[00:12.00] Erste Zeile\n[00:17.50] Zweite Zeile'} />
+        </label>
+      )}
+    </Section>
+  );
+}
 
 function GalleryField({ images, onChange }: { images: string[]; onChange: (v: string[]) => void }) {
   const [text, setText] = useState(images.join('\n'));
@@ -317,17 +369,8 @@ function WidgetsTab({ draft, set, setWidget }: TabProps & { setWidget: <K extend
   );
   return (
     <>
-      <Section n="01" title="Profilsong" text="Läuft nach dem ersten Klick auf deiner Seite. Mit Liedtext im LRC-Format erscheint die aktuelle Zeile unter dem Player.">
-        <div className="grid-2">
-          <label className="field" htmlFor="m-url">Adresse der Audiodatei<input className="in mono" id="m-url" value={draft.music.url} onChange={e => set('music', { ...draft.music, url: e.target.value })} placeholder="https://…/song.mp3" autoCapitalize="off" spellCheck={false} /></label>
-          <label className="field" htmlFor="m-title">Titel<input className="in" id="m-title" value={draft.music.title} maxLength={60} onChange={e => set('music', { ...draft.music, title: e.target.value })} /></label>
-        </div>
-        <label className="field" htmlFor="m-lrc"><span className="field-row"><span>Liedtext (LRC)</span><span className="hint mono">{lines ? `${lines} Zeilen erkannt` : ''}</span></span>
-          <textarea className="in mono" id="m-lrc" rows={5} value={draft.music.lyrics} onChange={e => set('music', { ...draft.music, lyrics: e.target.value })} placeholder={'[00:12.00] Erste Zeile\n[00:17.50] Zweite Zeile'} />
-        </label>
-        <p className="hint">Die Datei muss öffentlich erreichbar sein, z. B. über deinen eigenen Speicher oder eine direkte MP3-Adresse.</p>
-      </Section>
-      <Section n="02" title="Widgets" text="Live-Karten unter deinem Namen. Bis zur Anbindung an Spotify, Discord und YouTube trägst du die Werte selbst ein.">
+      <MusicSection draft={draft} set={set} lines={lines} />
+      <Section n="02" title="Widgets" text="Karten unter deinem Namen, die du selbst befüllst. Echten Live-Status und Spotify bekommst du über Verbindungen → Discord live.">
         <div className="card card-pad stack">
           {sw('w-gamer', 'Spielerkarte', 'Main-Game, Rang und Plattform-ID', W.gamer.on, v => setWidget('gamer', { on: v }))}
           {W.gamer.on && <div className="grid-2">

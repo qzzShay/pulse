@@ -4,7 +4,7 @@ import { normalizeUrl } from '@/lib/links';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { usernameError } from '@/lib/profile';
 import {
-  AnalyticsPage, BadgesPage, BRAND, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
+  AnalyticsPage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
 } from './pages';
 import { nav, parseUrl, useUrl } from './router';
 import { getState, reset, update, useDemo } from './store';
@@ -17,6 +17,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
   if (u.startsWith('/api/track')) return json({ ok: true });
+  if (u.startsWith('/api/live/twitch')) return json({ live: false });
   if (u.startsWith('/api/username')) {
     const name = new URLSearchParams(u.split('?')[1]).get('name') || '';
     const error = usernameError(name) ?? (RESERVED_USERNAMES.has(name) ? 'Dieser Name ist für die Plattform reserviert.' : null);
@@ -54,6 +55,7 @@ function Router() {
       : path === '/dashboard/profile' ? <ProfilePage params={params} />
       : path === '/dashboard/templates' ? <TemplatesPage />
       : path === '/dashboard/badges' ? <BadgesPage />
+      : path === '/dashboard/connections' ? <ConnectionsPage />
       : path === '/dashboard/share' ? <SharePage />
       : path === '/dashboard/settings' ? <SettingsPage />
       : <OverviewPage />;

@@ -1,9 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { BADGE_ICON, Icon, PLATFORM_ICON } from '@/components/icons';
+import { BrandIcon } from '@/components/BrandIcon';
+import { Icon } from '@/components/icons';
 import { platformFor, type PublicLink } from '@/lib/links';
-import { accent2, BADGES, initials, inkFor, rarity, type Profile } from '@/lib/profile';
+import { accent2, initials, inkFor, rarity, type Profile } from '@/lib/profile';
+import { DiscordPresence } from './DiscordPresence';
+import { MusicPlayer } from './MusicPlayer';
+import { Badges, Connections, iconColor, LiveBanner, useTwitchLive } from './ProfileParts';
+import { discordAvatar, useLanyard } from './useLanyard';
+
+export { parseLrc } from './MusicPlayer';
 
 export type CardUser = { username: string; uid: number; views: number };
 
@@ -14,21 +21,12 @@ type Props = {
   host: string;
   /** In the editor preview links do not navigate. */
   preview?: boolean;
-  /** Shared audio element so an enter screen can start playback. */
+  /** Audio element for file songs, shared so the enter screen can start playback. */
   audio?: HTMLAudioElement | null;
 };
 
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*<>/';
 const STATUS_LABEL = { online: 'Online', idle: 'Abwesend', dnd: 'Nicht stören', offline: 'Offline' } as const;
-
-export function parseLrc(txt: string) {
-  const out: { t: number; text: string }[] = [];
-  for (const line of txt.split(/\r?\n/)) {
-    const m = line.match(/^\s*\[(\d{1,2}):(\d{1,2}(?:[.,]\d+)?)\]\s*(.*)$/);
-    if (m) out.push({ t: +m[1] * 60 + parseFloat(m[2].replace(',', '.')), text: m[3] });
-  }
-  return out.sort((a, b) => a.t - b.t);
-}
 
 function useDecrypt(text: string, active: boolean) {
   const [shown, setShown] = useState(text);
@@ -52,24 +50,13 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   const name = p.displayName || user.username;
   const { shown, replay } = useDecrypt(name, p.nameFx === 'decrypt');
   const r = rarity(user.username);
-  const [playing, setPlaying] = useState(false);
-  const [lyric, setLyric] = useState<{ now: string; next: string }>({ now: '♪', next: '' });
-  const lrc = useRef(parseLrc(p.music.lyrics));
-  lrc.current = parseLrc(p.music.lyrics);
+  const lanyard = useLanyard(p.discord.userId);
+  const presence = lanyard.status === 'ok' ? lanyard.data : null;
+  const live = useTwitchLive(p);
 
-  useEffect(() => {
-    if (!audio) return;
-    const sync = () => {
-      setPlaying(!audio.paused);
-      const t = audio.currentTime, list = lrc.current;
-      let i = -1;
-      for (let k = 0; k < list.length; k++) { if (list[k].t <= t) i = k; else break; }
-      setLyric({ now: i >= 0 ? list[i].text || '♪' : '♪', next: list[i + 1]?.text ?? '' });
-    };
-    sync();
-    audio.addEventListener('play', sync); audio.addEventListener('pause', sync); audio.addEventListener('timeupdate', sync);
-    return () => { audio.removeEventListener('play', sync); audio.removeEventListener('pause', sync); audio.removeEventListener('timeupdate', sync); };
-  }, [audio]);
+  const status = presence && p.discord.useStatus ? presence.discord_status : p.status;
+  const avatar = presence && p.discord.useAvatar ? discordAvatar(presence.discord_user, 256) : p.avatar;
+  const showPresence = !!presence && p.discord.showCard;
 
   const style = { '--pa': p.accent, '--pa2': accent2(p.accent), '--pa-ink': inkFor(p.accent), '--glow': p.glow / 100 } as CSSProperties;
   const href = (l: PublicLink) => (preview ? '#' : `/r/${l.id}`);
@@ -81,47 +68,38 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
     const plat = platformFor(l.url);
     return (
       <a key={l.id} className={`plink${l.pinned ? ' pinned' : ''}`} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer">
-        <Icon name={PLATFORM_ICON[plat.key] ?? 'globe'} className="pli" />
+        <BrandIcon url={l.url} className="pli" style={l.pinned ? undefined : iconColor(p, plat.color)} />
         <span className="plt">{l.title || l.url}</span>
         <Icon name="arrow" className="pla" />
       </a>
     );
   };
 
-  const toggleSong = () => {
-    if (!audio || !p.music.url) return;
-    if (audio.paused) audio.play().catch(() => {}); else audio.pause();
-  };
-
   return (
     <article className={`prof look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}`} style={style}>
       <div className="pav">
-        <div className="pav-in">{p.avatar ? <img src={p.avatar} alt="" /> : <span>{initials(name)}</span>}</div>
-        <span className={`pdot s-${p.status}`} title={STATUS_LABEL[p.status]} />
+        <div className="pav-in">{avatar ? <img src={avatar} alt="" /> : <span>{initials(name)}</span>}</div>
+        <span className={`pdot s-${status}`} title={STATUS_LABEL[status]} />
       </div>
       <div className="pid">
         <h1 className="pname" data-text={name} onPointerEnter={p.nameFx === 'decrypt' ? replay : undefined}>{shown}</h1>
         <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span></div>
       </div>
-      {p.badges.length > 0 && (
-        <div className="pbadges">
-          {p.badges.filter(b => b in BADGES).map(b => (
-            <span key={b} className="pb" data-label={BADGES[b as keyof typeof BADGES]} role="img" aria-label={BADGES[b as keyof typeof BADGES]}>
-              <Icon name={BADGE_ICON[b] ?? 'star'} />
-            </span>
-          ))}
-        </div>
-      )}
+      <Badges p={p} />
       {p.bio && <p className="pbio">{p.bio}</p>}
       {p.location && <div className="pmeta"><span><Icon name="mappin" />{p.location}</span></div>}
 
-      {p.statusText && (
+      {live && <LiveBanner live={live} preview={preview} />}
+
+      {showPresence ? <DiscordPresence data={presence!} settings={p.discord} preview={preview} /> : p.statusText && (
         <div className="pact">
           <span className="pact-ic"><Icon name="game" /></span>
           <span className="pt"><span className="pt-l">Gerade dabei</span><span className="pt-v">{p.statusText}</span></span>
-          <span className="pact-s"><i className={`dot s-${p.status}`} />{STATUS_LABEL[p.status]}</span>
+          <span className="pact-s"><i className={`dot s-${status}`} />{STATUS_LABEL[status]}</span>
         </div>
       )}
+
+      {p.music.source && <MusicPlayer music={p.music} audio={audio} preview={preview} />}
 
       {(W.listening.on || W.discord.on || W.video.on || W.gamer.on) && (
         <div className="pwidgets">
@@ -131,7 +109,7 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
               <span className="pt"><span className="pt-l">Main-Game</span><span className="pt-v">{W.gamer.game || 'Spiel'}</span><span className="pt-s">{[W.gamer.rank, W.gamer.platform].filter(Boolean).join(' · ')}</span></span>
             </div>
           )}
-          {W.listening.on && (
+          {W.listening.on && !(presence?.listening_to_spotify && p.discord.showSpotify && showPresence) && (
             <div className="pw">
               <span className="pw-art"><Icon name="music" /></span>
               <span className="pt"><span className="pt-l"><span className="eq"><i /><i /><i /></span>Hört gerade</span><span className="pt-v">{W.listening.title}</span><span className="pt-s">{W.listening.artist}</span><span className="pw-bar"><i /></span></span>
@@ -139,7 +117,7 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
           )}
           {W.discord.on && (
             <div className="pw">
-              <span className="pw-art" style={{ background: '#5865f2', color: '#fff' }}><Icon name="discord" /></span>
+              <span className="pw-art" style={{ background: '#5865f2', color: '#fff' }}><BrandIcon platform="discord" /></span>
               <span className="pt"><span className="pt-l">Discord-Server</span><span className="pt-v">{W.discord.name}</span><span className="pt-s"><i className="dot dot-live" />{W.discord.online} online</span></span>
               {W.discord.invite
                 ? <a className="pw-btn" href={preview ? '#' : W.discord.invite} onClick={onLink} target="_blank" rel="noopener noreferrer">Beitreten</a>
@@ -163,26 +141,15 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
         </div>
       )}
 
-      {p.music.url && (
-        <>
-          <button className="psong" type="button" onClick={toggleSong} aria-label="Profilsong abspielen oder pausieren">
-            <span className="pp"><Icon name={playing ? 'pause' : 'play'} /></span>
-            <span className="pst">{p.music.title || 'Profilsong'}</span>
-            {playing && <span className="eq"><i /><i /><i /></span>}
-          </button>
-          {lrc.current.length > 0 && playing && (
-            <div className="plyric"><span className="now">{lyric.now}</span><span className="next">{lyric.next}</span></div>
-          )}
-        </>
-      )}
+      <Connections p={p} preview={preview} twitchLive={!!live} />
 
-      {links.length === 0 ? <div className="pempty">Noch keine Links</div> : p.socialRow ? (
+      {links.length === 0 ? (p.connections.length ? null : <div className="pempty">Noch keine Links</div>) : p.socialRow ? (
         <>
           {rest.length > 0 && (
             <div className="psocial">
               {rest.map(l => (
                 <a key={l.id} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer" aria-label={l.title} title={l.title}>
-                  <Icon name={PLATFORM_ICON[platformFor(l.url).key] ?? 'globe'} />
+                  <BrandIcon url={l.url} style={iconColor(p, platformFor(l.url).color)} />
                 </a>
               ))}
             </div>

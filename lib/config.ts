@@ -9,4 +9,7 @@ export const SITE_HOST = SITE_URL.replace(/^https?:\/\//, '');
 export const RESERVED_USERNAMES = new Set([
   'api', 'r', 'login', 'logout', 'signup', 'dashboard', 'admin', 'settings', 'help', 'static',
   '_next', 'favicon.ico', 'robots.txt', 'sitemap.xml', 'about', 'pricing', 'terms', 'privacy',
+  // Names that impersonate the platform or staff.
+  'root', 'system', 'staff', 'team', 'support', 'mod', 'mods', 'moderator', 'official', 'security', 'billing',
+  'pulse', 'null', 'undefined', 'me', 'www', 'mail', 'status', 'blog', 'docs', 'app', 'auth', 'register', 'account',
 ]);

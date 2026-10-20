@@ -68,6 +68,20 @@ In `/opt/pulse/.env`:
 
 Danach `docker compose up -d` ausführen.
 
+## Optional: Twitch-Live-Anzeige
+
+Damit auf deiner Seite ein LIVE-Banner erscheint, wenn du streamst:
+
+1. Auf [dev.twitch.tv/console](https://dev.twitch.tv/console) eine Anwendung registrieren (OAuth-Weiterleitung: `http://localhost`, Kategorie: Website-Integration).
+2. Client-ID und ein neues Client-Secret in `/opt/pulse/.env` eintragen:
+   ```
+   TWITCH_CLIENT_ID=…
+   TWITCH_CLIENT_SECRET=…
+   ```
+3. `docker compose up -d` ausführen. Im Dashboard unter **Verbindungen** deinen Twitch-Kanal hinzufügen.
+
+Discord-Live-Status und Spotify brauchen keine Einstellung auf dem Server: Das läuft über Lanyard direkt im Browser der Besucher.
+
 ## Wenn etwas nicht klappt
 
 - **Kein Zertifikat / Seite nicht erreichbar:** Zeigt der A-Eintrag auf die Server-IP? `dig +short pulse.deinedomain.de` muss die IP ausgeben. Dann `docker compose logs caddy` ansehen. Caddy versucht es automatisch erneut.

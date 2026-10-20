@@ -7,6 +7,7 @@ import { RESERVED_USERNAMES } from '@/lib/config';
 import { getUserByUsername, saveProfile, signupOpen, userCount } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { profileSchema, usernameError } from '@/lib/profile';
+import { verifySolution } from '@/lib/pow';
 import { limited } from '@/lib/ratelimit';
 import { requestInfo } from '@/lib/request';
 
@@ -23,6 +24,9 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
   if (!ident || !password) return { error: 'Gib Name und Passwort ein.' };
   const { ip } = await requestInfo();
   if (limited(`login:${ip}`, 10, 15 * 60 * 1000)) return { error: 'Zu viele Versuche. Warte 15 Minuten und versuch es dann noch einmal.' };
+  if (String(form.get('website') || '')) return { error: 'Name oder Passwort stimmt nicht.' };
+  const powErr = verifySolution(form.get('pow'), 15);
+  if (powErr) return { error: powErr };
   await ready();
   const user = ident.includes('@')
     ? (await db.select().from(schema.users).where(eq(schema.users.email, ident)).limit(1))[0]
@@ -36,6 +40,12 @@ export async function register(_: AuthState, form: FormData): Promise<AuthState>
   if (!(await signupOpen())) return { error: 'Die Registrierung ist gerade geschlossen.' };
   const { ip } = await requestInfo();
   if (limited(`signup:${ip}`, 5, 60 * 60 * 1000)) return { error: 'Zu viele neue Konten von dieser Verbindung. Versuch es in einer Stunde noch einmal.' };
+  // Honeypot filled in: answer like a success would look to a script, but create nothing.
+  if (String(form.get('website') || '')) return { error: 'Die Registrierung ist gerade nicht möglich.' };
+  const powErr = verifySolution(form.get('pow'), 18);
+  if (powErr) return { error: powErr };
+  // Distributed bots: cap sign-ups across all addresses.
+  if (limited('signup:all', 40, 60 * 60 * 1000)) return { error: 'Gerade melden sich sehr viele an. Versuch es in einer Stunde noch einmal.' };
   const username = String(form.get('username') || '').trim().toLowerCase();
   const email = String(form.get('email') || '').trim().toLowerCase() || null;
   const password = String(form.get('password') || '');

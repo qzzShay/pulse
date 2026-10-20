@@ -63,6 +63,26 @@ const P: Record<string, string> = {
   vr: '<rect x="2.5" y="7" width="19" height="10" rx="4"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/>',
   chat: '<path d="M4 5h16v11H9l-5 4z"/>',
   shop: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  flame: '<path d="M12 22c4 0 7-2.7 7-6.8 0-3.4-2.3-5.7-4-8.2-.4 2-1.4 3.4-2.8 3.9.4-3.3-1-6.6-3.7-8.9.2 3.5-1.6 5.6-3.3 7.7C3.9 11.3 5 13.3 5 15.2 5 19.3 8 22 12 22z"/><path d="M12 22c-1.7 0-3-1.2-3-3 0-1.6 1.3-2.7 2.2-4 .5 1.2 1.5 1.8 2.3 2 .8.4 1.5 1.1 1.5 2.1 0 1.7-1.3 2.9-3 2.9z"/>',
+  diamond: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M9 3l3 6 3-6M12 9v12"/>',
+  rocket: '<path d="M12 15l-3-3c1.5-5 4.5-8 10-9-1 5.5-4 8.5-9 10z"/><path d="M9 12H5l2-4h4M12 15v4l4-2v-4"/><path d="M6.5 16.5c-1.5.5-2.5 2.5-2.5 3.5 1 0 3-1 3.5-2.5"/><circle cx="15" cy="8.5" r="1.3"/>',
+  ghost: '<path d="M5 21V10a7 7 0 0 1 14 0v11l-2.3-1.6L14.3 21 12 19.4 9.7 21l-2.4-1.6z"/><path d="M9.5 10.5h.01M14.5 10.5h.01"/>',
+  skull: '<path d="M12 3a8 8 0 0 0-8 8c0 2.6 1.3 4.3 3 5.3V20h10v-3.7c1.7-1 3-2.7 3-5.3a8 8 0 0 0-8-8z"/><circle cx="9" cy="11.5" r="1.6"/><circle cx="15" cy="11.5" r="1.6"/><path d="M10 20v-2M14 20v-2M12 14.5l-.8 1.5h1.6z"/>',
+  moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  leaf: '<path d="M5 20c0-9 5-15 15-16-1 10-7 15-15 16z"/><path d="M5 20c3-4 6-7 10-10"/>',
+  paw: '<circle cx="7" cy="10" r="1.8"/><circle cx="10.5" cy="6" r="1.8"/><circle cx="14.5" cy="6.5" r="1.8"/><circle cx="17.5" cy="10.5" r="1.8"/><path d="M12 12c-2.5 0-5 3-5 5.5 0 1.7 1.5 2.5 3 2l2-.6 2 .6c1.5.5 3-.3 3-2C17 15 14.5 12 12 12z"/>',
+  coffee: '<path d="M4 9h13v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-6-6z"/><path d="M17 11h1.5a2.5 2.5 0 0 1 0 5H17M8 2.5c-.5 1 .5 1.5 0 2.5M12 2.5c-.5 1 .5 1.5 0 2.5"/>',
+  headphones: '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="5" height="7" rx="2"/><rect x="16" y="14" width="5" height="7" rx="2"/>',
+  book: '<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v16H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+  gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8C10 4 6 4 6.5 6.5 7 8 12 8 12 8zm0 0c2-4 6-4 5.5-1.5C17 8 12 8 12 8z"/>',
+  bug: '<rect x="7" y="7" width="10" height="13" rx="5"/><path d="M12 7V5M9 4l1.5 2M15 4l-1.5 2M3 12h4M17 12h4M4 18l3-2M20 18l-3-2M4 6l3 2M20 6l-3 2M12 11v9"/>',
+  plug: '<path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0zM12 17v5"/>',
+  live: '<circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M7 7a7 7 0 0 0 0 10M17 7a7 7 0 0 1 0 10"/>',
+  monitor: '<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  phone: '<rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M11 18.5h2"/>',
+  volume: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
+  mute: '<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/>',
   /* platform glyphs */
   instagram: '<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17 7h.01"/>',
   tiktok: '<path d="M14 4v10.5a3.5 3.5 0 1 1-3.5-3.5"/><path d="M14 4c.5 2.5 2.3 4 5 4"/>',
@@ -93,7 +113,8 @@ export const PLATFORM_ICON: Record<string, string> = {
 };
 
 export const BADGE_ICON: Record<string, string> = {
-  og: 'crown', early: 'star', verified: 'verified', creator: 'pen', gamer: 'game', artist: 'palette',
+  owner: 'shield', og: 'crown', early: 'star', verified: 'verified', premium: 'diamond', partner: 'sparkles',
+  booster: 'rocket', bughunter: 'bug', creator: 'pen', gamer: 'game', artist: 'palette',
   musician: 'music', streamer: 'radio', dev: 'code', vr: 'vr', supporter: 'heart',
 };
 

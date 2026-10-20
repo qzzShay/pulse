@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { detectMusic } from './music';
 
 /* Shared between server and client: the shape of a profile's appearance and content. */
 
@@ -30,9 +31,14 @@ export const LOOKS = [
 ] as const;
 
 export const BADGES = {
+  owner: 'Plattform-Owner',
   og: 'OG · UID unter 250',
   early: 'Early Access',
   verified: 'Verifiziert',
+  premium: 'Premium',
+  partner: 'Partner',
+  booster: 'Booster',
+  bughunter: 'Bug Hunter',
   creator: 'Creator',
   gamer: 'Gamer',
   artist: 'Artist',
@@ -43,6 +49,41 @@ export const BADGES = {
   supporter: 'Supporter',
 } as const;
 export type BadgeId = keyof typeof BADGES;
+
+/** Own colour per badge: two stops of a gradient, used for the icon glow and the tinted chip. */
+export const BADGE_COLORS: Record<BadgeId, [string, string]> = {
+  owner: ['#ff5f6d', '#ffc371'],
+  og: ['#ffd36b', '#ff9f43'],
+  early: ['#b9a6ff', '#7f6bff'],
+  verified: ['#4fb3ff', '#2f7bff'],
+  premium: ['#ff8bd1', '#b46bff'],
+  partner: ['#5865f2', '#8b95ff'],
+  booster: ['#ff73fa', '#ff4fb8'],
+  bughunter: ['#6be29a', '#2fbf71'],
+  creator: ['#ffcf5c', '#ff8a3d'],
+  gamer: ['#7cf3e4', '#3dbbd9'],
+  artist: ['#ff8bd1', '#ff5fa0'],
+  musician: ['#1ed760', '#14a34a'],
+  streamer: ['#a970ff', '#7b3dff'],
+  dev: ['#9ef0a0', '#45c96b'],
+  vr: ['#c9b8ff', '#8d72ff'],
+  supporter: ['#ff6b8a', '#ff3d6b'],
+};
+
+/** Badges that are earned or granted instead of freely chosen. */
+export const RESTRICTED_BADGES: Partial<Record<BadgeId, string>> = {
+  owner: 'Nur für den Owner der Plattform',
+  og: 'Nur für UID 1 bis 250',
+  premium: 'Mit Plan Pro oder Legend',
+  verified: 'Vergibt der Owner',
+  partner: 'Vergibt der Owner',
+};
+
+/** Icons people can pick for their own badges. */
+export const CUSTOM_BADGE_ICONS = [
+  'star', 'heart', 'crown', 'bolt', 'flame', 'diamond', 'rocket', 'ghost', 'skull', 'moon', 'sun', 'leaf',
+  'paw', 'coffee', 'headphones', 'camera', 'book', 'gift', 'trophy', 'shield', 'code', 'game', 'palette', 'music',
+] as const;
 
 export const ACCENTS = ['#b9a6ff', '#7cf3e4', '#ff8bd1', '#ffcf5c', '#6be29a', '#ff7a59', '#5cc8ff', '#ffffff'];
 
@@ -71,13 +112,46 @@ export const profileSchema = z.object({
   showViews: z.boolean().default(true),
   socialRow: z.boolean().default(false),
 
-  badges: z.array(z.string()).max(12).default(['early']),
+  badges: z.array(z.string()).max(16).default(['early']),
+  badgeStyle: z.enum(['color', 'accent', 'mono']).default('color'),
+  customBadges: z.array(z.object({
+    id: z.string().max(12),
+    label: z.string().min(1).max(24),
+    icon: z.enum(CUSTOM_BADGE_ICONS),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    on: z.boolean().default(true),
+  })).max(6).default([]),
+  /** How link and connection logos are coloured. */
+  iconStyle: z.enum(['brand', 'accent', 'mono']).default('brand'),
 
   music: z.object({
+    /** youtube | soundcloud | spotify | file, detected from the URL when saving. */
+    source: z.enum(['', 'file', 'youtube', 'soundcloud', 'spotify']).default(''),
     url: z.string().max(500).default(''),
-    title: z.string().max(60).default(''),
+    /** Video ID, track URL or "track/ID" depending on the source. */
+    mediaId: z.string().max(300).default(''),
+    title: z.string().max(100).default(''),
+    artist: z.string().max(80).default(''),
+    cover: z.string().max(500).default(''),
     lyrics: z.string().max(8000).default(''),
   }).default({}),
+
+  /** Live Discord presence via Lanyard (https://github.com/Phineas/lanyard). */
+  discord: z.object({
+    userId: z.string().regex(/^(\d{17,20})?$/).default(''),
+    showCard: z.boolean().default(true),
+    showActivity: z.boolean().default(true),
+    showSpotify: z.boolean().default(true),
+    useStatus: z.boolean().default(true),
+    useAvatar: z.boolean().default(false),
+  }).default({}),
+
+  connections: z.array(z.object({
+    platform: z.string().max(20),
+    handle: z.string().min(1).max(80),
+  })).max(24).default([]),
+  connectionsStyle: z.enum(['grid', 'icons']).default('grid'),
+  twitchLive: z.boolean().default(true),
 
   widgets: z.object({
     listening: z.object({ on: z.boolean().default(false), title: z.string().max(40).default(''), artist: z.string().max(40).default('') }).default({}),
@@ -94,7 +168,13 @@ export function parseProfile(json: string | null | undefined): Profile {
   let raw: unknown = {};
   try { raw = json ? JSON.parse(json) : {}; } catch { raw = {}; }
   const res = profileSchema.safeParse(raw);
-  return res.success ? res.data : profileSchema.parse({});
+  const p = res.success ? res.data : profileSchema.parse({});
+  // Profiles saved before music sources existed only have a URL.
+  if (p.music.url && !p.music.source) {
+    const d = detectMusic(p.music.url);
+    if (d) p.music = { ...p.music, source: d.source, mediaId: d.mediaId };
+  }
+  return p;
 }
 
 /* ---------- niches ---------- */

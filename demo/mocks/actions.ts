@@ -1,5 +1,8 @@
 import { normalizeUrl } from '@/lib/links';
-import { applyNiche, LOOKS, profileSchema, usernameError } from '@/lib/profile';
+import { detectMusic } from '@/lib/music';
+import { applyNiche, LOOKS, profileSchema, usernameError, type Profile } from '@/lib/profile';
+
+type MusicMeta = ReturnType<typeof detectMusic> & { title: string; artist: string; cover: string };
 import { getState, update } from '../store';
 
 /* Stand-ins for app/dashboard/actions.ts, operating on the demo store. Same signatures. */
@@ -24,10 +27,21 @@ export async function applyNicheAction(nicheId: string): Promise<Result> {
   return { ok: true, message: 'Vorlage übernommen' };
 }
 
-export async function setBadgesAction(badges: string[]): Promise<Result> {
+export async function saveBadgesAction(input: Pick<Profile, 'badges' | 'badgeStyle' | 'customBadges'>): Promise<Result> {
   await wait();
-  update(s => ({ profile: { ...s.profile, badges: badges.slice(0, 12) } }));
+  const parsed = profileSchema.safeParse({ ...getState().profile, ...input });
+  if (!parsed.success) return { ok: false, error: 'Prüfe Name und Farbe deiner eigenen Badges.' };
+  update(() => ({ profile: parsed.data }));
   return { ok: true, message: 'Badges gespeichert' };
+}
+
+/** No server in the preview: detect the source and use what the URL itself reveals. */
+export async function resolveMusicAction(url: string): Promise<{ ok: true; meta: MusicMeta } | { ok: false; error: string }> {
+  await wait();
+  const d = detectMusic(url);
+  if (!d) return { ok: false, error: 'Das ist keine gültige Adresse. Sie muss mit https:// beginnen.' };
+  const cover = d.source === 'youtube' ? `https://i.ytimg.com/vi/${d.mediaId}/hqdefault.jpg` : '';
+  return { ok: true, meta: { ...d, title: 'Titel wird in der App automatisch geladen', artist: '', cover } };
 }
 
 type LinkInput = { title: string; url: string; startsAt?: number | null; endsAt?: number | null };

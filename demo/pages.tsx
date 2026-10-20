@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Claim, Showcase } from '@/app/Landing';
 import { Board } from '@/app/dashboard/analytics/Board';
 import { BadgePicker } from '@/app/dashboard/badges/BadgePicker';
+import { ConnectionsEditor } from '@/app/dashboard/connections/ConnectionsEditor';
 import { CopyShare } from '@/app/dashboard/CopyShare';
 import { LinksManager } from '@/app/dashboard/links/LinksManager';
 import { ProfileEditor } from '@/app/dashboard/profile/ProfileEditor';
@@ -222,6 +223,11 @@ export function ProfilePage({ params }: { params: URLSearchParams }) {
   return <ProfileEditor key={user.id} initial={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} premium={user.plan !== 'free'} host={SITE_HOST} tab={tab} />;
 }
 
+export function ConnectionsPage() {
+  const { profile, user } = useDemo();
+  return <ConnectionsEditor key={user.id} initial={profile} twitchApi={false} />;
+}
+
 export function TemplatesPage() {
   const { profile } = useDemo();
   return <Templates current={profile.niche} />;
@@ -229,7 +235,7 @@ export function TemplatesPage() {
 
 export function BadgesPage() {
   const { profile, user } = useDemo();
-  return <BadgePicker key={profile.badges.join()} initial={profile.badges} uid={user.id} />;
+  return <BadgePicker key={profile.badges.join()} initial={{ badges: profile.badges, badgeStyle: profile.badgeStyle, customBadges: profile.customBadges }} user={{ uid: user.id, owner: user.role === 'owner', premium: user.plan !== 'free' }} />;
 }
 
 const SOURCES = [['tiktok', 'TikTok-Bio'], ['instagram', 'Instagram-Bio'], ['discord', 'Discord-Profil'], ['twitch', 'Twitch-Panel'], ['youtube', 'YouTube-Kanal'], ['qr', 'QR-Code']] as const;

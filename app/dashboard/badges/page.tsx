@@ -7,5 +7,10 @@ export const metadata = { title: 'Badges' };
 export default async function BadgesPage() {
   const user = await requireUser();
   const profile = await getProfile(user.id);
-  return <BadgePicker initial={profile.badges} uid={user.id} />;
+  return (
+    <BadgePicker
+      initial={{ badges: profile.badges, badgeStyle: profile.badgeStyle, customBadges: profile.customBadges }}
+      user={{ uid: user.id, owner: user.role === 'owner', premium: user.plan !== 'free' }}
+    />
+  );
 }

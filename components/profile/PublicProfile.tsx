@@ -4,24 +4,25 @@ import { useEffect, useRef, useState } from 'react';
 import { FxStage } from '@/components/fx/FxStage';
 import type { PublicLink } from '@/lib/links';
 import type { Profile } from '@/lib/profile';
+import { musicBus } from './MusicPlayer';
 import { ProfileCard, type CardUser } from './ProfileCard';
 
-type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string };
+type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string };
 
-export function PublicProfile({ profile, links, user, host, brand }: Props) {
+export function PublicProfile({ profile, links, user, host, brand, viewToken }: Props) {
   const [entered, setEntered] = useState(!profile.enterScreen);
   const [gone, setGone] = useState(!profile.enterScreen);
   const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
   const tracked = useRef(false);
 
   useEffect(() => {
-    if (!profile.music.url) return;
+    if (profile.music.source !== 'file' || !profile.music.url) return;
     const a = new Audio(profile.music.url);
     a.loop = true;
     a.preload = 'none';
     setAudio(a);
     return () => { a.pause(); a.src = ''; };
-  }, [profile.music.url]);
+  }, [profile.music.source, profile.music.url]);
 
   useEffect(() => {
     if (tracked.current) return;
@@ -30,15 +31,15 @@ export function PublicProfile({ profile, links, user, host, brand }: Props) {
     fetch('/api/track', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ username: user.username, referrer: document.referrer, source: ref }),
+      body: JSON.stringify({ username: user.username, referrer: document.referrer, source: ref, token: viewToken, wd: navigator.webdriver === true }),
       keepalive: true,
     }).catch(() => {});
-  }, [user.username]);
+  }, [user.username, viewToken]);
 
   const enter = () => {
     setEntered(true);
     setTimeout(() => setGone(true), 500);
-    if (audio) audio.play().catch(() => {});
+    musicBus.current?.play();
   };
 
   return (

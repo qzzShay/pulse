@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
+import { usePow } from '@/components/usePow';
 import { FxStage } from '@/components/fx/FxStage';
-import { Logo } from '@/components/icons';
+import { Icon, Logo } from '@/components/icons';
 import { rarity, usernameError } from '@/lib/profile';
 import { login, register } from './actions';
 
@@ -11,6 +12,9 @@ type Props = { mode: 'login' | 'register'; signupOpen: boolean; firstUser: boole
 
 export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand, host }: Props) {
   const [state, action, pending] = useActionState(mode === 'login' ? login : register, undefined);
+  const [round, setRound] = useState(0);
+  useEffect(() => { if (state) setRound(r => r + 1); }, [state]);
+  const pow = usePow(mode, round);
   const [name, setName] = useState(initialName);
   const r = rarity(name);
   const nameErr = name ? usernameError(name) : null;
@@ -30,6 +34,12 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
           </div>
           <form action={action}>
             <input type="hidden" name="next" value={next} />
+            <input type="hidden" name="pow" value={pow.token} />
+            {/* Honeypot: invisible to people, bots fill in every field. */}
+            <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', width: 1, height: 1, overflow: 'hidden' }}>
+              <label htmlFor="website">Website</label>
+              <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+            </div>
             {mode === 'register' ? (
               <>
                 <label className="field" htmlFor="username">Name
@@ -59,7 +69,11 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
               </>
             )}
             {state?.error && <p className="err" role="alert">{state.error}</p>}
-            <button className="btn btn-white" type="submit" disabled={pending || !!nameErr}>{pending ? 'Einen Moment …' : mode === 'login' ? 'Anmelden' : 'Konto erstellen'}</button>
+            {pow.status === 'error' && <p className="err" role="alert">{pow.error}</p>}
+            <button className="btn btn-white" type="submit" disabled={pending || !!nameErr || pow.status !== 'ready'}>
+              {pending ? 'Einen Moment …' : pow.status === 'working' ? 'Sicherheitsprüfung läuft …' : mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
+            </button>
+            <p className="hint" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="shield" style={{ width: 14, height: 14 }} />Schutz vor Bots ohne Captcha: Dein Browser löst im Hintergrund eine kleine Rechenaufgabe.</p>
           </form>
           {!firstUser && (
             <p className="muted" style={{ fontSize: 13.5 }}>

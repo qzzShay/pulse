@@ -8,7 +8,10 @@ import { RESERVED_USERNAMES } from '@/lib/config';
 import { getProfile, getUserByUsername, saveProfile, setSetting } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { normalizeUrl } from '@/lib/links';
-import { applyNiche, LOOKS, usernameError } from '@/lib/profile';
+import { detectMusic } from '@/lib/music';
+import { resolveMusic, type MusicMeta } from '@/lib/oembed';
+import { applyNiche, BADGES, LOOKS, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
+import type { User } from '@/lib/db/schema';
 
 export type Result = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -20,36 +23,64 @@ function refresh() {
 
 /* ---------- profile ---------- */
 
+/** Drops badges the person may not carry (OG, owner, premium, granted ones). */
+function allowedBadges(user: User, badges: string[]) {
+  return badges.filter(b => {
+    if (!(b in BADGES)) return false;
+    if (!(b in RESTRICTED_BADGES)) return true;
+    if (b === 'og') return user.id <= 250;
+    if (b === 'premium') return user.plan !== 'free';
+    return user.role === 'owner'; // owner, verified, partner
+  });
+}
+
+/** Keeps music source and ID in line with the URL, whatever the client sent. */
+function normalizeMusic(p: Profile): Profile {
+  if (!p.music.url) return { ...p, music: { ...p.music, source: '', mediaId: '' } };
+  const d = detectMusic(p.music.url);
+  return d ? { ...p, music: { ...p.music, source: d.source, mediaId: d.mediaId } } : { ...p, music: { ...p.music, url: '', source: '', mediaId: '' } };
+}
+
 export async function saveProfileAction(data: unknown): Promise<Result> {
   const user = await requireUser();
-  try {
-    const parsed = data as { look?: string };
-    const look = LOOKS.find(l => l.id === parsed?.look);
-    if (look?.premium && user.plan === 'free') return { ok: false, error: `${look.label} ist ein Premium-Look.` };
-    await saveProfile(user.id, data);
-    refresh();
-    revalidatePath(`/${user.username}`);
-    return { ok: true, message: 'Gespeichert' };
-  } catch {
-    return { ok: false, error: 'Einige Werte sind ungültig. Prüfe die markierten Felder.' };
-  }
+  const parsed = profileSchema.safeParse(data);
+  if (!parsed.success) return { ok: false, error: 'Einige Werte sind ungültig. Prüfe die markierten Felder.' };
+  const look = LOOKS.find(l => l.id === parsed.data.look);
+  if (look?.premium && user.plan === 'free') return { ok: false, error: `${look.label} ist ein Premium-Look.` };
+  const p = normalizeMusic({ ...parsed.data, badges: allowedBadges(user, parsed.data.badges) });
+  await saveProfile(user.id, p);
+  refresh();
+  revalidatePath(`/${user.username}`);
+  return { ok: true, message: 'Gespeichert' };
 }
 
 export async function applyNicheAction(nicheId: string): Promise<Result> {
   const user = await requireUser();
   const current = await getProfile(user.id);
-  await saveProfile(user.id, applyNiche(current, nicheId));
+  const next = applyNiche(current, nicheId);
+  await saveProfile(user.id, { ...next, badges: allowedBadges(user, next.badges) });
   refresh();
   revalidatePath(`/${user.username}`);
   return { ok: true, message: 'Vorlage übernommen' };
 }
 
-export async function setBadgesAction(badges: string[]): Promise<Result> {
+export async function saveBadgesAction(input: Pick<Profile, 'badges' | 'badgeStyle' | 'customBadges'>): Promise<Result> {
   const user = await requireUser();
   const current = await getProfile(user.id);
-  await saveProfile(user.id, { ...current, badges: badges.slice(0, 12) });
+  const parsed = profileSchema.safeParse({ ...current, ...input });
+  if (!parsed.success) return { ok: false, error: 'Prüfe Name und Farbe deiner eigenen Badges.' };
+  await saveProfile(user.id, { ...parsed.data, badges: allowedBadges(user, parsed.data.badges) });
   refresh();
+  revalidatePath(`/${user.username}`);
   return { ok: true, message: 'Badges gespeichert' };
+}
+
+/** Looks up title, artist and cover for a YouTube, SoundCloud, Spotify or audio-file URL. */
+export async function resolveMusicAction(url: string): Promise<{ ok: true; meta: MusicMeta } | { ok: false; error: string }> {
+  await requireUser();
+  const meta = await resolveMusic(String(url).slice(0, 500));
+  if (!meta) return { ok: false, error: 'Das ist keine gültige Adresse. Sie muss mit https:// beginnen.' };
+  return { ok: true, meta };
 }
 
 /* ---------- links ---------- */

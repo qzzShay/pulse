@@ -7,7 +7,7 @@ import { applyNiche, profileSchema, type Profile } from '@/lib/profile';
 export type DemoUser = { id: number; username: string; email: string | null; plan: 'free' | 'pro' | 'legend'; role: 'owner' | 'user'; createdAt: number };
 export type DemoState = { user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number };
 
-const KEY = 'pulse-demo-v1';
+const KEY = 'pulse-demo-v2';
 const day = 864e5;
 
 function seed(): DemoState {
@@ -21,6 +21,12 @@ function seed(): DemoState {
   const profile = applyNiche(base, 'gaming');
   profile.widgets.discord.name = 'Novas Lounge';
   profile.widgets.discord.online = '214';
+  profile.badges = ['owner', 'og', 'verified', 'bughunter', 'gamer'];
+  profile.customBadges = [{ id: 'team', label: 'Team Nova', icon: 'flame', color: '#ffcf5c', on: true }];
+  profile.connections = [
+    { platform: 'steam', handle: 'nova' }, { platform: 'twitch', handle: 'nova_live' }, { platform: 'valorant', handle: 'Nova#EUW' },
+    { platform: 'instagram', handle: '@nova' }, { platform: 'spotify', handle: 'nova' }, { platform: 'xbox', handle: 'NovaPlays' },
+  ];
   const now = Date.now();
   const links: EditableLink[] = [
     { id: 'l1', title: 'Live auf Twitch', url: 'https://www.twitch.tv/', pinned: true, hidden: false, startsAt: null, endsAt: null, position: 0 },
