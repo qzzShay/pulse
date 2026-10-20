@@ -8,7 +8,7 @@ import { BADGE_COLORS, BADGES, CUSTOM_BADGE_ICONS, RESTRICTED_BADGES, type Badge
 import { saveBadgesAction } from '../actions';
 
 type State = Pick<Profile, 'badges' | 'badgeStyle' | 'customBadges'>;
-type Props = { initial: State; user: { uid: number; owner: boolean; premium: boolean } };
+type Props = { initial: State; user: { uid: number; owner: boolean; premium: boolean; granted?: string[] } };
 
 const STYLES = [['color', 'Farbig'], ['accent', 'Akzentfarbe'], ['mono', 'Schlicht']] as const;
 const CUSTOM_COLORS = ['#ff5f6d', '#ffcf5c', '#6be29a', '#7cf3e4', '#4fb3ff', '#b9a6ff', '#ff8bd1', '#ffffff'];
@@ -26,7 +26,8 @@ export function BadgePicker({ initial, user }: Props) {
     if (!(id in RESTRICTED_BADGES)) return true;
     if (id === 'og') return user.uid <= 250;
     if (id === 'premium') return user.premium;
-    return user.owner;
+    if (id === 'owner') return user.owner;
+    return user.owner || (user.granted ?? []).includes(id);
   };
   const colorVars = (c1: string, c2: string) => ({ '--b1': c1, '--b2': c2 }) as CSSProperties;
 

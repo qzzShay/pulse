@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Icon, Logo } from '@/components/icons';
 import { initials } from '@/lib/profile';
-import { report } from '@/lib/analytics';
+import { LiveCount } from '@/components/dashboard/LiveCount';
+import { liveVisitors, report } from '@/lib/analytics';
 import { requireUser } from '@/lib/auth';
 import { SITE_HOST, SITE_URL } from '@/lib/config';
 import { getLinks, getProfile, publicLinks } from '@/lib/data';
@@ -13,8 +14,8 @@ const PLAN_LABEL = { free: 'Free', pro: 'Pro', legend: 'Legend' } as const;
 
 export default async function Overview() {
   const user = await requireUser();
-  const [profile, links, week] = await Promise.all([getProfile(user.id), getLinks(user.id), report(user.id, 7)]);
-  const live = publicLinks(links).length;
+  const [profile, links, week, online] = await Promise.all([getProfile(user.id), getLinks(user.id), report(user.id, 7), liveVisitors(user.id)]);
+  const live = publicLinks(links).filter(l => l.kind !== 'header').length;
   const url = `${SITE_HOST}/${user.username}`;
   const display = profile.displayName || user.username;
   const today = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -22,7 +23,7 @@ export default async function Overview() {
   const steps = [
     { done: !!profile.avatar, label: 'Profilbild hochladen', href: '/dashboard/profile?tab=you', icon: 'userCircle' },
     { done: !!profile.bio, label: 'Bio schreiben', href: '/dashboard/profile?tab=you', icon: 'edit' },
-    { done: links.length >= 3, label: 'Drei Links anlegen', href: '/dashboard/links', icon: 'link' },
+    { done: links.filter(l => l.kind !== 'header').length >= 3, label: 'Drei Links anlegen', href: '/dashboard/links', icon: 'link' },
     { done: !!profile.niche, label: 'Nische wählen', href: '/dashboard/templates', icon: 'template' },
     { done: profile.look !== 'none' || profile.background !== 'aurora', label: 'Look anpassen', href: '/dashboard/profile?tab=card', icon: 'card' },
     { done: !!profile.music.url || Object.values(profile.widgets).some(w => w.on), label: 'Widget oder Song', href: '/dashboard/profile?tab=widgets', icon: 'music' },
@@ -37,6 +38,7 @@ export default async function Overview() {
         <span className="eyebrow">{today}</span>
         <h1>Konto-Übersicht</h1>
         <p>Dein Konto auf einen Blick und wie deine Seite in den letzten 7 Tagen lief.</p>
+        <div className="row" style={{ marginTop: 6 }}><LiveCount initial={online} /></div>
       </div>
 
       <section className="hero-card">

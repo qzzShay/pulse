@@ -51,11 +51,48 @@ const SCHEMA_SQL = [
   )`,
   `CREATE INDEX IF NOT EXISTS events_user_time ON events(user_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS events_visitor ON events(user_id, visitor, type, created_at)`,
+  `CREATE TABLE IF NOT EXISTS uploads (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS uploads_user ON uploads(user_id)`,
+  `CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    reason TEXT NOT NULL,
+    details TEXT NOT NULL,
+    reporter TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at INTEGER NOT NULL
+  )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   )`,
 ];
+
+/** Columns added after the first release. SQLite has no ADD COLUMN IF NOT EXISTS, so duplicates are ignored. */
+const MIGRATIONS = [
+  `ALTER TABLE users ADD COLUMN totp_secret TEXT`,
+  `ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE users ADD COLUMN banned_reason TEXT`,
+  `ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE links ADD COLUMN kind TEXT NOT NULL DEFAULT 'link'`,
+  `ALTER TABLE links ADD COLUMN effect TEXT NOT NULL DEFAULT 'none'`,
+  `ALTER TABLE links ADD COLUMN icon TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE users ADD COLUMN granted TEXT NOT NULL DEFAULT ''`,
+];
+
+async function migrate(client: Client) {
+  await client.batch(SCHEMA_SQL, 'write');
+  for (const sql of MIGRATIONS) {
+    try { await client.execute(sql); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
+  }
+}
 
 type Globals = { client?: Client; ready?: Promise<void> };
 const g = globalThis as unknown as { __pulseDb?: Globals };
@@ -73,7 +110,7 @@ export const db = drizzle(getClient(), { schema });
 
 /** Creates tables on first use. Every data-access helper awaits this. */
 export function ready(): Promise<void> {
-  cache.ready ??= getClient().batch(SCHEMA_SQL, 'write').then(() => undefined);
+  cache.ready ??= migrate(getClient());
   return cache.ready;
 }
 

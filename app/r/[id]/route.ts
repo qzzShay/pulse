@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { track } from '@/lib/analytics';
 import { currentUserId } from '@/lib/auth';
-import { getLinkById } from '@/lib/data';
+import { getLinkById, getUserById } from '@/lib/data';
 import { linkState, normalizeUrl } from '@/lib/links';
 import { limited } from '@/lib/ratelimit';
 import { requestInfo } from '@/lib/request';
@@ -10,7 +10,8 @@ import { requestInfo } from '@/lib/request';
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const link = await getLinkById(id);
-  if (!link || linkState(link) !== 'live') return NextResponse.redirect(new URL('/', _req.url));
+  if (!link || link.kind === 'header' || linkState(link) !== 'live') return NextResponse.redirect(new URL('/', _req.url));
+  if ((await getUserById(link.userId))?.bannedReason) return NextResponse.redirect(new URL('/', _req.url));
   const info = await requestInfo();
   const target = normalizeUrl(link.url);
   // Flooding: still redirect, but stop recording clicks from this address for a while.

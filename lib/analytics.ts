@@ -1,6 +1,6 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import { db, ready, schema } from './db';
 import { limited } from './ratelimit';
 
@@ -178,7 +178,15 @@ export async function report(userId: number, range: Range, includeOwn = false): 
 
 export async function totalViews(userId: number) {
   await ready();
-  const rows = await db.select({ isBot: events.isBot, isOwner: events.isOwner, isRepeat: events.isRepeat }).from(events)
-    .where(and(eq(events.userId, userId), eq(events.type, 'view')));
-  return rows.filter(e => !e.isBot && !e.isOwner && !e.isRepeat).length;
+  const [r] = await db.select({ n: sql<number>`count(*)` }).from(events)
+    .where(and(eq(events.userId, userId), eq(events.type, 'view'), eq(events.isBot, false), eq(events.isOwner, false), eq(events.isRepeat, false)));
+  return Number(r?.n ?? 0);
+}
+
+/** Distinct real visitors in the last few minutes: the "online now" counter. */
+export async function liveVisitors(userId: number, minutes = 5) {
+  await ready();
+  const [r] = await db.select({ n: sql<number>`count(distinct ${events.visitor})` }).from(events)
+    .where(and(eq(events.userId, userId), eq(events.isBot, false), eq(events.isOwner, false), gte(events.createdAt, Date.now() - minutes * 60 * 1000)));
+  return Number(r?.n ?? 0);
 }

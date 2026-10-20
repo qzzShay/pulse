@@ -8,10 +8,11 @@ import { getUserByUsername, saveProfile, signupOpen, userCount } from '@/lib/dat
 import { db, ready, schema } from '@/lib/db';
 import { profileSchema, usernameError } from '@/lib/profile';
 import { verifySolution } from '@/lib/pow';
+import { verifyTotp } from '@/lib/totp';
 import { limited } from '@/lib/ratelimit';
 import { requestInfo } from '@/lib/request';
 
-export type AuthState = { error?: string } | undefined;
+export type AuthState = { error?: string; need2fa?: boolean } | undefined;
 
 const safeNext = (n: FormDataEntryValue | null) => {
   const s = typeof n === 'string' ? n : '';
@@ -32,7 +33,14 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
     ? (await db.select().from(schema.users).where(eq(schema.users.email, ident)).limit(1))[0]
     : await getUserByUsername(ident);
   if (!user || !(await checkPassword(password, user.passwordHash))) return { error: 'Name oder Passwort stimmt nicht.' };
-  await startSession(user.id);
+  if (user.bannedReason) return { error: `Dieses Konto ist gesperrt. Grund: ${user.bannedReason}` };
+  if (user.totpEnabled && user.totpSecret) {
+    const code = String(form.get('code') || '');
+    if (!code) return { need2fa: true };
+    if (limited(`2fa:${user.id}`, 6, 10 * 60 * 1000)) return { need2fa: true, error: 'Zu viele falsche Codes. Warte 10 Minuten.' };
+    if (!verifyTotp(user.totpSecret, code)) return { need2fa: true, error: 'Der Code stimmt nicht. Nimm den aktuellen Code aus deiner Authenticator-App.' };
+  }
+  await startSession(user.id, user.sessionVersion);
   redirect(safeNext(form.get('next')));
 }
 

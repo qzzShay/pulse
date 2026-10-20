@@ -6,10 +6,10 @@ import { Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from '
 import { logout } from '@/app/login/actions';
 import { Icon, Logo } from '@/components/icons';
 import { initials } from '@/lib/profile';
-import { CRUMBS, NAV, PROFILE_TABS, SEARCH_INDEX } from './nav';
+import { ADMIN_NAV, CRUMBS, NAV, PROFILE_TABS, SEARCH_INDEX } from './nav';
 import { ToastProvider } from './Toast';
 
-type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string }; brand: string };
+type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string; owner?: boolean; openReports?: number }; brand: string };
 
 export function Shell(props: Props) {
   return (
@@ -47,7 +47,7 @@ function ShellInner({ children, user, brand }: Props) {
     <div className="shell">
       <aside className={`side${open ? ' open' : ''}`} aria-label="Navigation">
         <Link href="/dashboard" className="brand"><Logo />{brand}</Link>
-        {NAV.map(sec => (
+        {[...NAV, ...(user.owner ? ADMIN_NAV : [])].map(sec => (
           <div key={sec.section}>
             <div className="nav-sec">{sec.section}</div>
             {sec.items.map(item => {
@@ -71,6 +71,7 @@ function ShellInner({ children, user, brand }: Props) {
               return (
                 <Link key={item.href} href={item.href} className="nav-item" aria-current={path === item.href ? 'page' : undefined}>
                   <Icon name={item.icon} />{item.label}
+                  {item.href === '/dashboard/admin' && !!user.openReports && <span className="nav-count">{user.openReports}</span>}
                 </Link>
               );
             })}

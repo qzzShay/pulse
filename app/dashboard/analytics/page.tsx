@@ -1,5 +1,7 @@
 import Link from 'next/link';
-import { report, type Range } from '@/lib/analytics';
+import { LiveCount } from '@/components/dashboard/LiveCount';
+import { Icon } from '@/components/icons';
+import { liveVisitors, report, type Range } from '@/lib/analytics';
 import { requireUser } from '@/lib/auth';
 import { SITE_HOST } from '@/lib/config';
 import { getLinks } from '@/lib/data';
@@ -23,13 +25,13 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const range = ([1, 7, 30, 90].includes(Number(sp.range)) ? Number(sp.range) : 30) as Range;
   const own = sp.own === '1';
-  const [r, links] = await Promise.all([report(user.id, range, own), getLinks(user.id)]);
+  const [r, links, live] = await Promise.all([report(user.id, range, own), getLinks(user.id), liveVisitors(user.id)]);
   const q = (patch: Record<string, string | number>) => {
     const p = new URLSearchParams({ range: String(range), ...(own ? { own: '1' } : {}) });
     for (const [k, v] of Object.entries(patch)) { if (v === '') p.delete(k); else p.set(k, String(v)); }
     return `/dashboard/analytics?${p}`;
   };
-  const linkRows = links.map(l => ({ l, n: r.linkClicks[l.id] ?? 0 })).sort((a, b) => b.n - a.n);
+  const linkRows = links.filter(l => l.kind !== 'header').map(l => ({ l, n: r.linkClicks[l.id] ?? 0 })).sort((a, b) => b.n - a.n);
   const maxSource = r.sources[0]?.count ?? 1, maxCountry = r.countries[0]?.count ?? 1;
   const totalDevices = r.devices.reduce((a, d) => a + d.count, 0) || 1;
 
@@ -46,6 +48,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <nav className="seg-sm" aria-label="Zeitraum">
             {RANGES.map(([v, label]) => <Link key={v} href={q({ range: v })} aria-current={v === range ? 'page' : undefined}>{label}</Link>)}
           </nav>
+          <a className="btn btn-ghost btn-sm" href={`/dashboard/analytics/export?range=${range}`} download><Icon name="download" />CSV exportieren</a>
+          <LiveCount initial={live} />
         </div>
       </div>
 

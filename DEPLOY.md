@@ -43,6 +43,14 @@ Pulse läuft auf dem Server in Docker: ein Container für die App, einer für Ca
 
 Ohne Git-Checkout: neues Release-Archiv über den Ordner entpacken (`tar xzf … -C /opt/pulse`), dann `sudo bash deploy/update.sh`. `.env`, `data/` und `backups/` bleiben dabei erhalten.
 
+### Hochgeladene Dateien
+
+Uploads (Banner, Hintergründe, Songs, Galerie) liegen in `data/uploads/`. Das nächtliche Backup sichert nur die Datenbank. Die Dateien sicherst du bei Bedarf so:
+
+```bash
+tar czf backups/uploads-$(date +%F).tar.gz -C data uploads
+```
+
 ## Backup zurückspielen
 
 ```bash

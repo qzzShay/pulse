@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Icon, Logo } from '@/components/icons';
-import { currentUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 import { BRAND, SITE_HOST } from '@/lib/config';
 import { signupOpen } from '@/lib/data';
 import { Claim, Showcase } from './Landing';
@@ -8,7 +8,7 @@ import { Claim, Showcase } from './Landing';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const [uid, open] = await Promise.all([currentUserId(), signupOpen()]);
+  const [uid, open] = await Promise.all([getCurrentUser(), signupOpen()]);
   return (
     <div className="land-wrap">
       <header className="land-nav">

@@ -1,11 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { BRAND } from '@/lib/config';
+import { BRAND, SITE_URL } from '@/lib/config';
 import './globals.css';
 
-export const metadata: Metadata = {
-  title: { default: BRAND, template: `%s · ${BRAND}` },
-  description: 'Link-in-Bio-Seiten für Creator, Gamer und Artists.',
-};
+// A function so SITE_URL is read when the server runs, not frozen at build time.
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: { default: BRAND, template: `%s · ${BRAND}` },
+    description: 'Link-in-Bio-Seiten für Creator, Gamer und Artists.',
+  };
+}
 
 export const viewport: Viewport = { themeColor: '#050505', colorScheme: 'dark', viewportFit: 'cover' };
 

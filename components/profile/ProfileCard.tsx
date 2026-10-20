@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import { BrandIcon } from '@/components/BrandIcon';
 import { Icon } from '@/components/icons';
 import { platformFor, type PublicLink } from '@/lib/links';
+import { platformByKey } from '@/lib/platforms';
 import { accent2, initials, inkFor, rarity, type Profile } from '@/lib/profile';
 import { DiscordPresence } from './DiscordPresence';
 import { MusicPlayer } from './MusicPlayer';
@@ -46,6 +47,33 @@ function useDecrypt(text: string, active: boolean) {
   return { shown: active ? shown : text, replay: run };
 }
 
+/** Types each bio line, holds it, deletes it, then moves on to the next one. */
+function useTypewriter(lines: string[], active: boolean) {
+  const [text, setText] = useState('');
+  const key = lines.join('\n');
+  useEffect(() => {
+    if (!active || !lines.length) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setText(lines[0]); return; }
+    let li = 0, ci = 0, del = false, t = 0;
+    const step = () => {
+      const line = lines[li % lines.length];
+      if (!del) {
+        ci++; setText(line.slice(0, ci));
+        if (ci >= line.length) { del = lines.length > 1; t = window.setTimeout(step, 1900); return; }
+        t = window.setTimeout(step, 55 + Math.random() * 60);
+      } else {
+        ci--; setText(line.slice(0, ci));
+        if (ci <= 0) { del = false; li++; t = window.setTimeout(step, 380); return; }
+        t = window.setTimeout(step, 28);
+      }
+    };
+    t = window.setTimeout(step, 450);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, active]);
+  return text;
+}
+
 export function ProfileCard({ profile: p, links, user, host, preview = false, audio }: Props) {
   const name = p.displayName || user.username;
   const { shown, replay } = useDecrypt(name, p.nameFx === 'decrypt');
@@ -53,6 +81,8 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   const lanyard = useLanyard(p.discord.userId);
   const presence = lanyard.status === 'ok' ? lanyard.data : null;
   const live = useTwitchLive(p);
+  const typing = p.bioMode === 'typewriter' && p.bioLines.length > 0;
+  const typed = useTypewriter(p.bioLines, typing);
 
   const status = presence && p.discord.useStatus ? presence.discord_status : p.status;
   const avatar = presence && p.discord.useAvatar ? discordAvatar(presence.discord_user, 256) : p.avatar;
@@ -62,13 +92,14 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   const href = (l: PublicLink) => (preview ? '#' : `/r/${l.id}`);
   const onLink = (e: React.MouseEvent) => { if (preview) e.preventDefault(); };
   const W = p.widgets;
-  const pinned = links.filter(l => l.pinned), rest = links.filter(l => !l.pinned);
+  const pinned = links.filter(l => l.pinned), rest = links.filter(l => !l.pinned && l.kind !== 'header');
 
   const rowLink = (l: PublicLink) => {
-    const plat = platformFor(l.url);
+    if (l.kind === 'header') return <h2 key={l.id} className="plhead">{l.title}</h2>;
+    const plat = l.icon ? platformByKey(l.icon) : platformFor(l.url);
     return (
-      <a key={l.id} className={`plink${l.pinned ? ' pinned' : ''}`} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer">
-        <BrandIcon url={l.url} className="pli" style={l.pinned ? undefined : iconColor(p, plat.color)} />
+      <a key={l.id} className={`plink${l.pinned ? ' pinned' : ''}${l.effect && l.effect !== 'none' ? ` lfx-${l.effect}` : ''}`} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer">
+        <BrandIcon platform={l.icon || undefined} url={l.url} className="pli" style={l.pinned ? undefined : iconColor(p, plat.color)} />
         <span className="plt">{l.title || l.url}</span>
         <Icon name="arrow" className="pla" />
       </a>
@@ -76,17 +107,18 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   };
 
   return (
-    <article className={`prof look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}`} style={style}>
+    <article className={`prof look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}${p.banner ? ' has-banner' : ''}`} style={style}>
+      {p.banner && <div className="pbanner"><img src={p.banner} alt="" /></div>}
       <div className="pav">
         <div className="pav-in">{avatar ? <img src={avatar} alt="" /> : <span>{initials(name)}</span>}</div>
         <span className={`pdot s-${status}`} title={STATUS_LABEL[status]} />
       </div>
       <div className="pid">
         <h1 className="pname" data-text={name} onPointerEnter={p.nameFx === 'decrypt' ? replay : undefined}>{shown}</h1>
-        <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span></div>
+        <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span>{p.pronouns && <span className="ppron">{p.pronouns}</span>}</div>
       </div>
       <Badges p={p} />
-      {p.bio && <p className="pbio">{p.bio}</p>}
+      {typing ? <p className="pbio ptype" aria-label={p.bioLines.join(' · ')}><span aria-hidden>{typed}</span><i className="caret" aria-hidden /></p> : p.bio && <p className="pbio">{p.bio}</p>}
       {p.location && <div className="pmeta"><span><Icon name="mappin" />{p.location}</span></div>}
 
       {live && <LiveBanner live={live} preview={preview} />}
@@ -135,7 +167,7 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
 
       {W.gallery.on && W.gallery.images.length > 0 && (
         <div className="pgallery">
-          {W.gallery.images.slice(0, 6).map((src, i) => (
+          {W.gallery.images.slice(0, 12).map((src, i) => (
             <a key={i} href={preview ? '#' : src} onClick={onLink} target="_blank" rel="noopener noreferrer"><img src={src} alt="" loading="lazy" /></a>
           ))}
         </div>
@@ -148,8 +180,8 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
           {rest.length > 0 && (
             <div className="psocial">
               {rest.map(l => (
-                <a key={l.id} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer" aria-label={l.title} title={l.title}>
-                  <BrandIcon url={l.url} style={iconColor(p, platformFor(l.url).color)} />
+                <a key={l.id} className={l.effect && l.effect !== 'none' ? `lfx-${l.effect}` : undefined} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer" aria-label={l.title} title={l.title}>
+                  <BrandIcon platform={l.icon || undefined} url={l.url} style={iconColor(p, (l.icon ? platformByKey(l.icon) : platformFor(l.url)).color)} />
                 </a>
               ))}
             </div>

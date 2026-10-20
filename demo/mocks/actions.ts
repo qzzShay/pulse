@@ -1,4 +1,4 @@
-import { normalizeUrl } from '@/lib/links';
+import { normalizeUrl, type EditableLink } from '@/lib/links';
 import { detectMusic } from '@/lib/music';
 import { applyNiche, LOOKS, profileSchema, usernameError, type Profile } from '@/lib/profile';
 
@@ -56,12 +56,25 @@ export async function createLinkAction(input: LinkInput): Promise<Result> {
   await wait();
   const { url, title } = clean(input);
   if (!url) return { ok: false, error: 'Gib eine Adresse ein, z. B. https://youtube.com/@deinname' };
-  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title, url, pinned: false, hidden: false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, position: s.links.length }] }));
+  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title, url, pinned: false, hidden: false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, position: s.links.length, kind: 'link', effect: 'none', icon: '' }] }));
   return { ok: true, message: 'Link hinzugefügt' };
 }
 
-export async function updateLinkAction(id: string, patch: Partial<LinkInput & { pinned: boolean; hidden: boolean }>): Promise<Result> {
+export async function createHeaderAction(title: string): Promise<Result> {
   await wait();
+  const t = String(title || '').trim().slice(0, 60);
+  if (!t) return { ok: false, error: 'Gib der Überschrift einen Text.' };
+  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title: t, url: '', pinned: false, hidden: false, startsAt: null, endsAt: null, position: s.links.length, kind: 'header', effect: 'none', icon: '' }] }));
+  return { ok: true, message: 'Überschrift hinzugefügt' };
+}
+
+export async function updateLinkAction(id: string, patch: Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: EditableLink['effect']; icon: string }>): Promise<Result> {
+  await wait();
+  const link = getState().links.find(l => l.id === id);
+  if (link?.kind === 'header') {
+    update(s => ({ links: s.links.map(l => (l.id === id ? { ...l, ...(patch.title !== undefined ? { title: patch.title.trim().slice(0, 60) || l.title } : {}), ...(patch.hidden !== undefined ? { hidden: patch.hidden } : {}) } : l)) }));
+    return { ok: true };
+  }
   if (patch.url !== undefined && !normalizeUrl(patch.url)) return { ok: false, error: 'Die Adresse darf nicht leer sein.' };
   update(s => ({
     links: s.links.map(l => {

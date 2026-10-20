@@ -24,6 +24,8 @@ export function spotifyId(url: string): string | null {
 
 export function detectMusic(raw: string): DetectedMusic | null {
   const url = raw.trim();
+  // Uploaded audio file on this server.
+  if (/^\/u\/[A-Za-z0-9_-]+\.(mp3|ogg|wav|m4a|flac)$/.test(url)) return { source: 'file', mediaId: url, url };
   if (!/^https?:\/\//i.test(url)) return null;
   const yt = youtubeId(url);
   if (yt) return { source: 'youtube', mediaId: yt, url };

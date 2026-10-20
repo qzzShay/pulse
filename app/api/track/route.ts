@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const parsed = body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
   const user = await getUserByUsername(parsed.data.username);
-  if (!user) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!user || user.bannedReason) return NextResponse.json({ ok: false }, { status: 404 });
   const info = await requestInfo();
   // Flooding: stop writing anything for this address for a while.
   if (limited(`trackreq:${info.ip}`, 120, 10 * 60 * 1000)) return NextResponse.json({ ok: false }, { status: 429 });

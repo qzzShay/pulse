@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition, type CSSProperties, type ReactNode } from 'react';
 import { PROFILE_TABS, type ProfileTab } from '@/components/dashboard/nav';
 import { useToast } from '@/components/dashboard/Toast';
+import { UploadButton } from '@/components/dashboard/UploadField';
 import { FxStage } from '@/components/fx/FxStage';
 import { Icon } from '@/components/icons';
 import { ProfileCard, parseLrc, type CardUser } from '@/components/profile/ProfileCard';
@@ -83,7 +84,7 @@ export function ProfileEditor({ initial, links, user, premium, host, tab }: Prop
             <a className="hint mono" href={`/${user.username}`} target="_blank" rel="noreferrer">{host}/{user.username} ↗</a>
           </div>
           <div className="preview-frame">
-            <FxStage effect={draft.background} cursor={draft.cursor} accent={draft.accent} tilt={draft.tilt}>
+            <FxStage effect={draft.background} cursor={draft.cursor} accent={draft.accent} tilt={draft.tilt} media={draft.media} cursorImage={draft.cursorImage}>
               <ProfileCard profile={draft} links={links} user={user} host={host} preview audio={audio} />
             </FxStage>
           </div>
@@ -145,6 +146,17 @@ function resizeImage(file: File, size = 320): Promise<string> {
   });
 }
 
+function BioLines({ lines, onChange }: { lines: string[]; onChange: (v: string[]) => void }) {
+  const [text, setText] = useState(lines.join('\n'));
+  return (
+    <label className="field" htmlFor="p-lines">Zeilen, eine pro Zeile <span className="hint" style={{ marginTop: -4 }}>Werden nacheinander getippt und wieder gelöscht. Höchstens 6.</span>
+      <textarea className="in" id="p-lines" rows={4} value={text}
+        onChange={e => { setText(e.target.value); onChange(e.target.value.split('\n').map(s => s.slice(0, 80)).filter(s => s.trim()).slice(0, 6)); }}
+        placeholder={'Streamer aus Berlin\nBaut Pixel-Welten\nCommissions offen'} />
+    </label>
+  );
+}
+
 function YouTab({ draft, set }: TabProps) {
   const toast = useToast();
   return (
@@ -163,15 +175,29 @@ function YouTab({ draft, set }: TabProps) {
                 try { set('avatar', await resizeImage(f)); } catch { toast('Diese Datei ist kein lesbares Bild. Versuch PNG oder JPG.', { error: true }); }
               }} />
           </label>
+          <UploadButton accept="image" label="Animiert (GIF)" onDone={f => set('avatar', f.url)} />
           {draft.avatar && <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('avatar', null)}>Entfernen</button>}
+        </div>
+        <div className="field">Banner <span className="hint" style={{ marginTop: -4 }}>Breites Bild über deiner Karte, am besten 1500 × 500</span>
+          <div className="row" style={{ gap: 12 }}>
+            {draft.banner && <img src={draft.banner} alt="" className="banner-thumb" />}
+            <UploadButton accept="image" label={draft.banner ? 'Ersetzen' : 'Banner hochladen'} onDone={f => set('banner', f.url)} />
+            {draft.banner && <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('banner', '')}>Entfernen</button>}
+          </div>
         </div>
         <div className="grid-2">
           <label className="field" htmlFor="p-name">Anzeigename<input className="in" id="p-name" value={draft.displayName} maxLength={32} onChange={e => set('displayName', e.target.value)} /></label>
           <label className="field" htmlFor="p-loc">Ort<input className="in" id="p-loc" value={draft.location} maxLength={40} onChange={e => set('location', e.target.value)} placeholder="z. B. Berlin" /></label>
+          <label className="field" htmlFor="p-pron">Pronomen<input className="in" id="p-pron" value={draft.pronouns} maxLength={20} onChange={e => set('pronouns', e.target.value)} placeholder="z. B. sie/ihr" /></label>
         </div>
-        <label className="field" htmlFor="p-bio"><span className="field-row"><span>Bio</span><span className="hint mono">{draft.bio.length}/200</span></span>
-          <textarea className="in" id="p-bio" value={draft.bio} maxLength={200} rows={3} onChange={e => set('bio', e.target.value)} placeholder="Ein, zwei Sätze über dich" />
-        </label>
+        <div className="field">Bio<Chips name="biomode" items={[['static', 'Fester Text'], ['typewriter', 'Schreibmaschine']] as const} value={draft.bioMode} onChange={v => set('bioMode', v)} /></div>
+        {draft.bioMode === 'static' ? (
+          <label className="field" htmlFor="p-bio"><span className="field-row"><span>Text</span><span className="hint mono">{draft.bio.length}/200</span></span>
+            <textarea className="in" id="p-bio" value={draft.bio} maxLength={200} rows={3} onChange={e => set('bio', e.target.value)} placeholder="Ein, zwei Sätze über dich" />
+          </label>
+        ) : (
+          <BioLines lines={draft.bioLines} onChange={v => set('bioLines', v)} />
+        )}
       </Section>
       <Section n="02" title="Status" text="Erscheint als Karte „Gerade dabei“ unter deinem Namen, mit Online-Punkt.">
         <div className="grid-2">
@@ -253,15 +279,46 @@ function CardTab({ draft, set, premium, onLocked }: TabProps & { premium: boolea
 /* ---------- Seite ---------- */
 
 function PageTab({ draft, set }: TabProps) {
+  const m = draft.media;
+  const setMedia = (v: Partial<Profile['media']>) => set('media', { ...m, ...v });
   return (
     <>
       <Section n="01" title="Hintergrund" text="Animierte Effekte, die automatisch deine Akzentfarbe übernehmen. Besucher mit „reduzierte Bewegung“ sehen ein Standbild.">
         <Chips name="bg" items={EFFECTS} value={draft.background} onChange={v => set('background', v)} />
       </Section>
-      <Section n="02" title="Cursor" text="Erscheint, wenn Besucher die Maus über deine Seite bewegen.">
-        <Chips name="cursor" items={CURSORS} value={draft.cursor} onChange={v => set('cursor', v)} />
+      <Section n="02" title="Eigenes Bild oder Video" text="Liegt hinter allem. Der Effekt von oben läuft dann als leichte Ebene darüber. Videos laufen stumm in Schleife.">
+        <div className="row" style={{ gap: 12 }}>
+          {m.type === 'image' && m.url && <img src={m.url} alt="" className="banner-thumb" />}
+          {m.type === 'video' && m.url && <video src={m.url} className="banner-thumb" muted autoPlay loop playsInline />}
+          <UploadButton accept="media" label={m.url ? 'Ersetzen' : 'Bild oder Video hochladen'} onDone={f => setMedia({ url: f.url, type: f.kind === 'video' ? 'video' : 'image' })} />
+          {m.url && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMedia({ url: '', type: 'none' })}>Entfernen</button>}
+        </div>
+        {m.url && <>
+          <div className="grid-2">
+            <label className="field" htmlFor="m-blur"><span className="field-row"><span>Unschärfe</span><span className="hint mono">{m.blur} px</span></span>
+              <input type="range" className="range" id="m-blur" min={0} max={30} value={m.blur} onChange={e => setMedia({ blur: Number(e.target.value) })} />
+            </label>
+            <label className="field" htmlFor="m-dim"><span className="field-row"><span>Abdunkeln</span><span className="hint mono">{m.dim} %</span></span>
+              <input type="range" className="range" id="m-dim" min={0} max={90} step={5} value={m.dim} onChange={e => setMedia({ dim: Number(e.target.value) })} />
+            </label>
+          </div>
+          <label className="switch" htmlFor="m-ov"><span>Effekt darüber legen<small>Aus: nur dein Bild oder Video, ohne animierte Ebene.</small></span><input type="checkbox" id="m-ov" checked={m.overlay} onChange={e => setMedia({ overlay: e.target.checked })} /></label>
+        </>}
       </Section>
-      <Section n="03" title="Eintritt und Zähler">
+      <Section n="03" title="Cursor" text="Erscheint, wenn Besucher die Maus über deine Seite bewegen. Ein eigenes Bild ersetzt den Mauszeiger.">
+        <Chips name="cursor" items={CURSORS} value={draft.cursor} onChange={v => set('cursor', v)} />
+        <div className="row" style={{ gap: 12 }}>
+          {draft.cursorImage && <img src={draft.cursorImage} alt="" style={{ width: 32, height: 32, objectFit: 'contain' }} />}
+          <UploadButton accept="image" label={draft.cursorImage ? 'Eigenen Cursor ersetzen' : 'Eigenen Cursor hochladen'} onDone={f => set('cursorImage', f.url)} />
+          {draft.cursorImage && <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('cursorImage', '')}>Entfernen</button>}
+        </div>
+        <p className="hint">Am besten ein PNG oder GIF mit 32 × 32 Pixeln. Browser zeigen größere Cursor nicht an.</p>
+      </Section>
+      <Section n="04" title="Browser-Tab" text="Was im Tab steht, während jemand deine Seite offen hat. Dein Avatar wird zum Tab-Symbol.">
+        <label className="field" htmlFor="t-title">Tab-Titel<input className="in" id="t-title" value={draft.tabTitle} maxLength={60} onChange={e => set('tabTitle', e.target.value)} placeholder={draft.displayName || 'Dein Anzeigename'} /></label>
+        <div className="field">Animation<Chips name="tabanim" items={[['static', 'Keine'], ['typing', 'Tippen'], ['scroll', 'Laufschrift']] as const} value={draft.tabAnim} onChange={v => set('tabAnim', v)} /></div>
+      </Section>
+      <Section n="05" title="Eintritt und Zähler">
         <label className="switch" htmlFor="enter"><span>Eintritts-Bildschirm<small>„Klicke, um einzutreten“ über unscharfem Hintergrund. Der Klick startet auch deinen Profilsong.</small></span><input type="checkbox" id="enter" checked={draft.enterScreen} onChange={e => set('enterScreen', e.target.checked)} /></label>
         <label className="switch" htmlFor="views"><span>Aufrufzähler zeigen<small>Zeigt die Zahl echter Aufrufe unten auf der Karte.</small></span><input type="checkbox" id="views" checked={draft.showViews} onChange={e => set('showViews', e.target.checked)} /></label>
       </Section>
@@ -319,12 +376,14 @@ function MusicSection({ draft, set, lines }: TabProps & { lines: number }) {
     set('music', { ...m, url: res.meta.url, source: res.meta.source, mediaId: res.meta.mediaId, title: res.meta.title.slice(0, 100), artist: res.meta.artist.slice(0, 80), cover: res.meta.cover });
   };
   return (
-    <Section n="01" title="Profilsong" text="Füge einen Link von YouTube, SoundCloud oder Spotify ein oder die Adresse einer Audiodatei. Titel und Cover holt Pulse automatisch. Der Klick auf den Eintritts-Bildschirm startet den Song.">
+    <Section n="01" title="Profilsong" text="Füge einen Link von YouTube, SoundCloud oder Spotify ein oder lade eine eigene Audiodatei hoch. Titel und Cover holt Pulse automatisch. Der Klick auf den Eintritts-Bildschirm startet den Song.">
       <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); apply(); }}>
         <label className="field" htmlFor="m-url" style={{ flex: '1 1 300px' }}>Link zum Song
           <input className="in mono" id="m-url" value={url} onChange={e => { setUrl(e.target.value); setError(''); }} placeholder="https://youtube.com/watch?v=… · soundcloud.com/… · open.spotify.com/track/… · …/song.mp3" autoCapitalize="off" spellCheck={false} />
         </label>
         <button type="submit" className="btn btn-white" disabled={busy || url.trim() === m.url}>{busy ? 'Lädt …' : url.trim() ? 'Übernehmen' : 'Entfernen'}</button>
+        <UploadButton accept="audio" label="Datei hochladen" className="btn btn-ghost"
+          onDone={f => { setUrl(f.url); set('music', { ...m, url: f.url, source: 'file', mediaId: f.url, title: m.source === 'file' ? m.title : '', artist: m.source === 'file' ? m.artist : '', cover: '' }); }} />
       </form>
       {detected && url.trim() !== m.url && <p className="hint">Erkannt: {SOURCE_LABEL[detected.source]}. Klick auf „Übernehmen“, um Titel und Cover zu laden.</p>}
       {error && <p className="err">{error}</p>}
@@ -352,12 +411,26 @@ function MusicSection({ draft, set, lines }: TabProps & { lines: number }) {
 
 function GalleryField({ images, onChange }: { images: string[]; onChange: (v: string[]) => void }) {
   const [text, setText] = useState(images.join('\n'));
+  const update = (list: string[]) => { const next = list.slice(0, 12); setText(next.join('\n')); onChange(next); };
   return (
-    <label className="field" htmlFor="gal">Bildadressen, eine pro Zeile <span className="hint" style={{ marginTop: -4 }}>höchstens 6</span>
-      <textarea className="in mono" id="gal" rows={4} value={text}
-        onChange={e => { setText(e.target.value); onChange(e.target.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 6)); }}
-        placeholder={'https://…/artwork-1.jpg\nhttps://…/artwork-2.jpg'} />
-    </label>
+    <div className="stack" style={{ gap: 12 }}>
+      {images.length > 0 && (
+        <div className="gal-edit">
+          {images.map((src, i) => (
+            <span key={`${src}-${i}`}>
+              <img src={src} alt="" />
+              <button type="button" aria-label="Bild entfernen" onClick={() => update(images.filter((_, j) => j !== i))}><Icon name="x" /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      {images.length < 12 && <UploadButton accept="image" multiple label="Bilder hochladen" onDone={f => setText(t => { const next = [...t.split('\n').map(s => s.trim()).filter(Boolean), f.url].slice(0, 12); onChange(next); return next.join('\n'); })} />}
+      <label className="field" htmlFor="gal">Oder Bildadressen, eine pro Zeile <span className="hint" style={{ marginTop: -4 }}>höchstens 12</span>
+        <textarea className="in mono" id="gal" rows={3} value={text}
+          onChange={e => { setText(e.target.value); onChange(e.target.value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 12)); }}
+          placeholder={'https://…/artwork-1.jpg\nhttps://…/artwork-2.jpg'} />
+      </label>
+    </div>
   );
 }
 
@@ -403,7 +476,7 @@ function WidgetsTab({ draft, set, setWidget }: TabProps & { setWidget: <K extend
           </div>}
         </div>
         <div className="card card-pad stack">
-          {sw('w-gallery', 'Galerie', 'Bis zu 6 Bilder in einem Raster, ideal für Artworks und Avatare', W.gallery.on, v => setWidget('gallery', { on: v }))}
+          {sw('w-gallery', 'Galerie', 'Bis zu 12 Bilder in einem Raster, ideal für Artworks und Avatare', W.gallery.on, v => setWidget('gallery', { on: v }))}
           {W.gallery.on && <GalleryField images={W.gallery.images} onChange={images => setWidget('gallery', { images })} />}
         </div>
       </Section>

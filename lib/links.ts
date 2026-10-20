@@ -2,9 +2,15 @@
 
 export type LinkState = 'live' | 'hidden' | 'scheduled' | 'expired';
 
-export type PublicLink = { id: string; title: string; url: string; pinned: boolean };
+export type LinkKind = 'link' | 'header';
 
-export type EditableLink = PublicLink & {
+/** Small animation that draws attention to one link. */
+export const LINK_EFFECTS = [['none', 'Keine'], ['pulse', 'Pulsieren'], ['shake', 'Wackeln'], ['glow', 'Leuchten'], ['shine', 'Glanz']] as const;
+export type LinkEffect = (typeof LINK_EFFECTS)[number][0];
+
+export type PublicLink = { id: string; title: string; url: string; pinned: boolean; kind?: LinkKind; effect?: LinkEffect; icon?: string };
+
+export type EditableLink = Required<PublicLink> & {
   hidden: boolean;
   startsAt: number | null;
   endsAt: number | null;

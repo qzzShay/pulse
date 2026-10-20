@@ -75,8 +75,8 @@ export const RESTRICTED_BADGES: Partial<Record<BadgeId, string>> = {
   owner: 'Nur für den Owner der Plattform',
   og: 'Nur für UID 1 bis 250',
   premium: 'Mit Plan Pro oder Legend',
-  verified: 'Vergibt der Owner',
-  partner: 'Vergibt der Owner',
+  verified: 'Vergibt der Owner im Admin-Bereich',
+  partner: 'Vergibt der Owner im Admin-Bereich',
 };
 
 /** Icons people can pick for their own badges. */
@@ -97,6 +97,15 @@ export const profileSchema = z.object({
   status: z.enum(['online', 'idle', 'dnd', 'offline']).default('online'),
   statusText: z.string().max(48).default(''),
   niche: z.string().max(20).default(''),
+  pronouns: z.string().max(20).default(''),
+  /** Wide image above the card. Uploaded (/u/…) or an https URL. */
+  banner: z.string().max(500).default(''),
+  /** Bio lines typed out one after another instead of a static bio. */
+  bioMode: z.enum(['static', 'typewriter']).default('static'),
+  bioLines: z.array(z.string().max(80)).max(6).default([]),
+  /** Browser tab title; empty uses the display name. */
+  tabTitle: z.string().max(60).default(''),
+  tabAnim: z.enum(['static', 'typing', 'scroll']).default('static'),
 
   accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#b9a6ff'),
   look: z.enum(LOOKS.map(l => l.id) as unknown as [string, ...string[]]).default('none'),
@@ -108,6 +117,16 @@ export const profileSchema = z.object({
 
   background: z.enum(ids(EFFECTS)).default('aurora'),
   cursor: z.enum(ids(CURSORS)).default('trail'),
+  /** Own image or video behind everything; the effect then runs as a light overlay on top. */
+  media: z.object({
+    type: z.enum(['none', 'image', 'video']).default('none'),
+    url: z.string().max(500).default(''),
+    blur: z.number().min(0).max(30).default(0),
+    dim: z.number().min(0).max(90).default(35),
+    overlay: z.boolean().default(true),
+  }).default({}),
+  /** Own cursor image (small PNG or GIF). */
+  cursorImage: z.string().max(500).default(''),
   enterScreen: z.boolean().default(true),
   showViews: z.boolean().default(true),
   socialRow: z.boolean().default(false),
@@ -158,7 +177,7 @@ export const profileSchema = z.object({
     discord: z.object({ on: z.boolean().default(false), name: z.string().max(40).default(''), online: z.string().max(8).default(''), invite: z.string().max(200).default('') }).default({}),
     video: z.object({ on: z.boolean().default(false), title: z.string().max(80).default(''), views: z.string().max(12).default(''), url: z.string().max(300).default('') }).default({}),
     gamer: z.object({ on: z.boolean().default(false), game: z.string().max(40).default(''), rank: z.string().max(30).default(''), platform: z.string().max(40).default('') }).default({}),
-    gallery: z.object({ on: z.boolean().default(false), images: z.array(z.string().max(500)).max(6).default([]) }).default({}),
+    gallery: z.object({ on: z.boolean().default(false), images: z.array(z.string().max(500)).max(12).default([]) }).default({}),
   }).default({}),
 });
 

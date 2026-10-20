@@ -9,6 +9,7 @@ import { CopyShare } from '@/app/dashboard/CopyShare';
 import { LinksManager } from '@/app/dashboard/links/LinksManager';
 import { ProfileEditor } from '@/app/dashboard/profile/ProfileEditor';
 import { SettingsForms } from '@/app/dashboard/settings/SettingsForms';
+import { AdminPanel } from '@/app/dashboard/admin/AdminPanel';
 import { Templates } from '@/app/dashboard/templates/Templates';
 import { PROFILE_TABS, type ProfileTab } from '@/components/dashboard/nav';
 import { Icon, Logo } from '@/components/icons';
@@ -28,20 +29,21 @@ const PLAN_LABEL = { free: 'Free', pro: 'Pro', legend: 'Legend' } as const;
 
 export function publicLinks(all: EditableLink[]) {
   const live = all.filter(l => linkState(l) === 'live');
-  return [...live.filter(l => l.pinned), ...live.filter(l => !l.pinned)].map(({ id, title, url, pinned }) => ({ id, title, url, pinned }));
+  return [...live.filter(l => l.pinned && l.kind === 'link'), ...live.filter(l => !l.pinned || l.kind === 'header')]
+    .map(({ id, title, url, pinned, kind, effect, icon }) => ({ id, title, url, pinned: pinned && kind === 'link', kind, effect, icon }));
 }
 
 export function OverviewPage() {
   const { user, profile, links, clicks } = useDemo();
   const week = demoReport(7, links, clicks);
-  const live = publicLinks(links).length;
+  const live = publicLinks(links).filter(l => l.kind !== 'header').length;
   const url = `${SITE_HOST}/${user.username}`;
   const display = profile.displayName || user.username;
   const today = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
   const steps = [
     { done: !!profile.avatar, label: 'Profilbild hochladen', href: '/dashboard/profile?tab=you', icon: 'userCircle' },
     { done: !!profile.bio, label: 'Bio schreiben', href: '/dashboard/profile?tab=you', icon: 'edit' },
-    { done: links.length >= 3, label: 'Drei Links anlegen', href: '/dashboard/links', icon: 'link' },
+    { done: links.filter(l => l.kind !== 'header').length >= 3, label: 'Drei Links anlegen', href: '/dashboard/links', icon: 'link' },
     { done: !!profile.niche, label: 'Nische wählen', href: '/dashboard/templates', icon: 'template' },
     { done: profile.look !== 'none' || profile.background !== 'aurora', label: 'Look anpassen', href: '/dashboard/profile?tab=card', icon: 'card' },
     { done: !!profile.music.url || Object.values(profile.widgets).some(w => w.on), label: 'Widget oder Song', href: '/dashboard/profile?tab=widgets', icon: 'music' },
@@ -136,7 +138,7 @@ export function AnalyticsPage({ params }: { params: URLSearchParams }) {
     for (const [k, v] of Object.entries(patch)) { if (v === '') p.delete(k); else p.set(k, String(v)); }
     return `/dashboard/analytics?${p}`;
   };
-  const linkRows = links.map(l => ({ l, n: r.linkClicks[l.id] ?? 0 })).sort((a, b) => b.n - a.n);
+  const linkRows = links.filter(l => l.kind !== 'header').map(l => ({ l, n: r.linkClicks[l.id] ?? 0 })).sort((a, b) => b.n - a.n);
   const maxSource = r.sources[0]?.count ?? 1, maxCountry = r.countries[0]?.count ?? 1;
   const totalDevices = r.devices.reduce((a, d) => a + d.count, 0) || 1;
   return (
@@ -276,8 +278,20 @@ export function SharePage() {
 }
 
 export function SettingsPage() {
-  const { user, signupOpen } = useDemo();
-  return <SettingsForms key={user.username} username={user.username} email={user.email ?? ''} owner={user.role === 'owner'} signupOpen={signupOpen} userCount={1} host={SITE_HOST} createdAt={user.createdAt} />;
+  const { user, signupOpen, totp, files, admin } = useDemo();
+  return <SettingsForms key={user.username} username={user.username} email={user.email ?? ''} owner={user.role === 'owner'} signupOpen={signupOpen} userCount={admin.users.length} host={SITE_HOST} createdAt={user.createdAt} totp={totp} files={files} quota={1024 ** 3} />;
+}
+
+export function AdminPage({ params }: { params: URLSearchParams }) {
+  const { admin, signupOpen } = useDemo();
+  const q = (params.get('q') ?? '').toLowerCase();
+  const t = params.get('tab');
+  const tab = t === 'reports' || t === 'done' ? t : 'users';
+  const users = admin.users.filter(u => !q || u.username.includes(q) || String(u.id) === q || (u.email ?? '').includes(q));
+  const reports = admin.reports.filter(r => r.status === (tab === 'done' ? 'done' : 'open'));
+  const open = admin.reports.filter(r => r.status === 'open').length;
+  const stats = { total: admin.users.length, banned: admin.users.filter(u => u.bannedReason).length, newWeek: 3, views: 486, clicks: 121, bots: 57, bytes: admin.users.reduce((n, u) => n + u.storage, 0), open };
+  return <AdminPanel stats={stats} users={users} reports={reports} tab={tab} q={q} signupOpen={signupOpen} host={SITE_HOST} />;
 }
 
 export function PublicPage() {

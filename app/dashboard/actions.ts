@@ -3,11 +3,12 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
-import { checkPassword, hashPassword, requireUser } from '@/lib/auth';
+import { checkPassword, hashPassword, requireUser, rotateSessions } from '@/lib/auth';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { getProfile, getUserByUsername, saveProfile, setSetting } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
-import { normalizeUrl } from '@/lib/links';
+import { LINK_EFFECTS, normalizeUrl } from '@/lib/links';
+import { PLATFORMS } from '@/lib/platforms';
 import { detectMusic } from '@/lib/music';
 import { resolveMusic, type MusicMeta } from '@/lib/oembed';
 import { applyNiche, BADGES, LOOKS, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
@@ -30,7 +31,8 @@ function allowedBadges(user: User, badges: string[]) {
     if (!(b in RESTRICTED_BADGES)) return true;
     if (b === 'og') return user.id <= 250;
     if (b === 'premium') return user.plan !== 'free';
-    return user.role === 'owner'; // owner, verified, partner
+    if (b === 'owner') return user.role === 'owner';
+    return user.role === 'owner' || user.granted.split(',').includes(b); // verified, partner
   });
 }
 
@@ -41,13 +43,28 @@ function normalizeMusic(p: Profile): Profile {
   return d ? { ...p, music: { ...p.music, source: d.source, mediaId: d.mediaId } } : { ...p, music: { ...p.music, url: '', source: '', mediaId: '' } };
 }
 
+/** Uploaded files (/u/…) or https addresses only; anything else (javascript:, http:, other schemes) is dropped. */
+const mediaUrl = (u: string) => (/^\/u\/[A-Za-z0-9_-]+\.[a-z0-9]{3,4}$/.test(u) || /^https:\/\/[^\s"'<>]+$/.test(u) ? u : '');
+
+function cleanMedia(p: Profile): Profile {
+  return {
+    ...p,
+    avatar: p.avatar && (/^data:image\/(png|jpeg|webp|gif);base64,/.test(p.avatar) || mediaUrl(p.avatar)) ? p.avatar : null,
+    banner: mediaUrl(p.banner),
+    cursorImage: mediaUrl(p.cursorImage),
+    media: { ...p.media, url: mediaUrl(p.media.url), type: mediaUrl(p.media.url) ? p.media.type : 'none' },
+    widgets: { ...p.widgets, gallery: { ...p.widgets.gallery, images: p.widgets.gallery.images.map(mediaUrl).filter(Boolean) } },
+    bioLines: p.bioLines.map(l => l.trim()).filter(Boolean),
+  };
+}
+
 export async function saveProfileAction(data: unknown): Promise<Result> {
   const user = await requireUser();
   const parsed = profileSchema.safeParse(data);
   if (!parsed.success) return { ok: false, error: 'Einige Werte sind ungültig. Prüfe die markierten Felder.' };
   const look = LOOKS.find(l => l.id === parsed.data.look);
   if (look?.premium && user.plan === 'free') return { ok: false, error: `${look.label} ist ein Premium-Look.` };
-  const p = normalizeMusic({ ...parsed.data, badges: allowedBadges(user, parsed.data.badges) });
+  const p = cleanMedia(normalizeMusic({ ...parsed.data, badges: allowedBadges(user, parsed.data.badges) }));
   await saveProfile(user.id, p);
   refresh();
   revalidatePath(`/${user.username}`);
@@ -104,10 +121,36 @@ export async function createLinkAction(input: LinkInput): Promise<Result> {
   return { ok: true, message: 'Link hinzugefügt' };
 }
 
-export async function updateLinkAction(id: string, patch: Partial<LinkInput & { pinned: boolean; hidden: boolean }>): Promise<Result> {
+/** A section title between links, e.g. "Socials" or "Shop". */
+export async function createHeaderAction(title: string): Promise<Result> {
+  const user = await requireUser();
+  const t = String(title || '').trim().slice(0, 60);
+  if (!t) return { ok: false, error: 'Gib der Überschrift einen Text.' };
+  await ready();
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(position), -1)` }).from(links).where(eq(links.userId, user.id));
+  await db.insert(links).values({ id: randomUUID().slice(0, 12), userId: user.id, title: t, url: '', kind: 'header', position: Number(max) + 1, createdAt: Date.now() });
+  refresh();
+  return { ok: true, message: 'Überschrift hinzugefügt' };
+}
+
+type LinkPatch = Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: string; icon: string }>;
+
+export async function updateLinkAction(id: string, patch: LinkPatch): Promise<Result> {
   const user = await requireUser();
   await ready();
+  const [row] = await db.select({ kind: links.kind }).from(links).where(and(eq(links.id, id), eq(links.userId, user.id))).limit(1);
+  if (!row) return { ok: false, error: 'Diesen Link gibt es nicht mehr.' };
   const set: Record<string, unknown> = {};
+  if (row.kind === 'header') {
+    const t = String(patch.title ?? '').trim().slice(0, 60);
+    if (patch.title !== undefined) { if (!t) return { ok: false, error: 'Die Überschrift darf nicht leer sein.' }; set.title = t; }
+    if (patch.hidden !== undefined) set.hidden = patch.hidden;
+    if (Object.keys(set).length) await db.update(links).set(set).where(eq(links.id, id));
+    refresh();
+    return { ok: true };
+  }
+  if (patch.effect !== undefined) set.effect = LINK_EFFECTS.some(e => e[0] === patch.effect) ? patch.effect : 'none';
+  if (patch.icon !== undefined) set.icon = PLATFORMS.some(p => p.key === patch.icon) ? patch.icon : '';
   if (patch.url !== undefined || patch.title !== undefined) {
     const { url, title } = cleanLink({ url: patch.url ?? '', title: patch.title ?? '' });
     if (patch.url !== undefined) { if (!url) return { ok: false, error: 'Die Adresse darf nicht leer sein.' }; set.url = url; }
@@ -181,7 +224,8 @@ export async function changePasswordAction(input: { current: string; next: strin
   if (input.next.length < 8) return { ok: false, error: 'Das neue Passwort braucht mindestens 8 Zeichen.' };
   await ready();
   await db.update(users).set({ passwordHash: await hashPassword(input.next) }).where(eq(users.id, user.id));
-  return { ok: true, message: 'Passwort geändert' };
+  await rotateSessions(user.id);
+  return { ok: true, message: 'Passwort geändert. Andere Geräte wurden abgemeldet.' };
 }
 
 export async function setSignupOpenAction(open: boolean): Promise<Result> {

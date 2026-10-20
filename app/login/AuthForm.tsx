@@ -16,6 +16,10 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
   useEffect(() => { if (state) setRound(r => r + 1); }, [state]);
   const pow = usePow(mode, round);
   const [name, setName] = useState(initialName);
+  // Controlled: React resets uncontrolled fields after each action, which would lose them at the 2FA step.
+  const [ident, setIdent] = useState('');
+  const [pw, setPw] = useState('');
+  const [code, setCode] = useState('');
   const r = rarity(name);
   const nameErr = name ? usernameError(name) : null;
 
@@ -61,11 +65,17 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
             ) : (
               <>
                 <label className="field" htmlFor="username">Name oder E-Mail
-                  <input className="in" id="username" name="username" autoComplete="username" autoCapitalize="off" spellCheck={false} required />
+                  <input className="in" id="username" name="username" autoComplete="username" autoCapitalize="off" spellCheck={false} required value={ident} onChange={e => setIdent(e.target.value)} />
                 </label>
                 <label className="field" htmlFor="password">Passwort
-                  <input className="in" id="password" name="password" type="password" autoComplete="current-password" required />
+                  <input className="in" id="password" name="password" type="password" autoComplete="current-password" required value={pw} onChange={e => setPw(e.target.value)} />
                 </label>
+                {state?.need2fa && (
+                  <label className="field" htmlFor="code">Code aus deiner Authenticator-App
+                    <input className="in mono" id="code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={7} autoFocus required placeholder="123 456"
+                      value={code} onChange={e => setCode(e.target.value.replace(/[^\d ]/g, ''))} style={{ letterSpacing: '.2em', fontSize: 18 }} />
+                  </label>
+                )}
               </>
             )}
             {state?.error && <p className="err" role="alert">{state.error}</p>}

@@ -1,13 +1,17 @@
 import { useSyncExternalStore } from 'react';
+import type { AdminReport, AdminUser } from '@/lib/admin';
 import type { EditableLink } from '@/lib/links';
 import { applyNiche, profileSchema, type Profile } from '@/lib/profile';
 
 /* Demo data store: replaces the database for the artifact preview. Persists per browser. */
 
 export type DemoUser = { id: number; username: string; email: string | null; plan: 'free' | 'pro' | 'legend'; role: 'owner' | 'user'; createdAt: number };
-export type DemoState = { user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number };
+export type DemoState = {
+  user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number;
+  totp: boolean; files: { id: string; kind: string; size: number; createdAt: number; url: string }[]; admin: { users: AdminUser[]; reports: AdminReport[] };
+};
 
-const KEY = 'pulse-demo-v2';
+const KEY = 'pulse-demo-v3';
 const day = 864e5;
 
 function seed(): DemoState {
@@ -17,28 +21,48 @@ function seed(): DemoState {
     location: 'Berlin',
     statusText: 'Spielt Valorant',
     badges: ['og', 'early'],
+    pronouns: 'sie/ihr',
   });
   const profile = applyNiche(base, 'gaming');
   profile.widgets.discord.name = 'Novas Lounge';
   profile.widgets.discord.online = '214';
   profile.badges = ['owner', 'og', 'verified', 'bughunter', 'gamer'];
+  profile.bioMode = 'typewriter';
+  profile.bioLines = ['Ranked-Grinderin aus Berlin', 'Live Mo, Mi und Fr ab 19 Uhr', 'Clips, Turniere und Chaos'];
+  profile.tabTitle = 'Nova ist live';
+  profile.tabAnim = 'scroll';
   profile.customBadges = [{ id: 'team', label: 'Team Nova', icon: 'flame', color: '#ffcf5c', on: true }];
   profile.connections = [
     { platform: 'steam', handle: 'nova' }, { platform: 'twitch', handle: 'nova_live' }, { platform: 'valorant', handle: 'Nova#EUW' },
     { platform: 'instagram', handle: '@nova' }, { platform: 'spotify', handle: 'nova' }, { platform: 'xbox', handle: 'NovaPlays' },
   ];
   const now = Date.now();
+  const L = (id: string, title: string, url: string, position: number, extra: Partial<EditableLink> = {}): EditableLink =>
+    ({ id, title, url, pinned: false, hidden: false, startsAt: null, endsAt: null, position, kind: 'link', effect: 'none', icon: '', ...extra });
   const links: EditableLink[] = [
-    { id: 'l1', title: 'Live auf Twitch', url: 'https://www.twitch.tv/', pinned: true, hidden: false, startsAt: null, endsAt: null, position: 0 },
-    { id: 'l2', title: 'Instagram', url: 'https://www.instagram.com/', pinned: false, hidden: false, startsAt: null, endsAt: null, position: 1 },
-    { id: 'l3', title: 'TikTok', url: 'https://www.tiktok.com/', pinned: false, hidden: false, startsAt: null, endsAt: null, position: 2 },
-    { id: 'l4', title: 'YouTube', url: 'https://www.youtube.com/', pinned: false, hidden: false, startsAt: null, endsAt: null, position: 3 },
-    { id: 'l5', title: 'Community-Turnier Anmeldung', url: 'https://discord.gg/', pinned: false, hidden: false, startsAt: now + 3 * day, endsAt: null, position: 4 },
-    { id: 'l6', title: 'Peak', url: 'https://open.spotify.com/track/3MrUH8Uj3jZSJFkhXanyMC', pinned: false, hidden: false, startsAt: null, endsAt: null, position: 5 },
+    L('l1', 'Live auf Twitch', 'https://www.twitch.tv/', 0, { pinned: true }),
+    L('l2', 'Instagram', 'https://www.instagram.com/', 1),
+    L('l3', 'TikTok', 'https://www.tiktok.com/', 2),
+    L('h1', 'Mehr von mir', '', 3, { kind: 'header' }),
+    L('l4', 'Neues Video auf YouTube', 'https://www.youtube.com/', 4, { effect: 'glow' }),
+    L('l5', 'Community-Turnier Anmeldung', 'https://discord.gg/', 5, { startsAt: now + 3 * day }),
+    L('l6', 'Peak', 'https://open.spotify.com/track/3MrUH8Uj3jZSJFkhXanyMC', 6),
   ];
   return {
     user: { id: 42, username: 'nova', email: null, plan: 'legend', role: 'owner', createdAt: now - 21 * day },
-    profile, links, signupOpen: false, clicks: {}, version: 0,
+    profile, links, signupOpen: false, clicks: {}, version: 0, totp: false, files: [],
+    admin: {
+      users: [
+        { id: 42, username: 'nova', email: null, plan: 'legend', role: 'owner', createdAt: now - 21 * day, bannedReason: null, granted: [], totp: false, views: 1840, links: 6, storage: 0 },
+        { id: 57, username: 'kai', email: 'kai@example.com', plan: 'pro', role: 'user', createdAt: now - 9 * day, bannedReason: null, granted: ['verified'], totp: true, views: 612, links: 9, storage: 4.2 * 1024 * 1024 },
+        { id: 63, username: 'mira', email: null, plan: 'free', role: 'user', createdAt: now - 4 * day, bannedReason: null, granted: [], totp: false, views: 133, links: 4, storage: 0.8 * 1024 * 1024 },
+        { id: 71, username: 'gratis.robux', email: null, plan: 'free', role: 'user', createdAt: now - day, bannedReason: null, granted: [], totp: false, views: 3, links: 12, storage: 0 },
+      ],
+      reports: [
+        { id: 1, userId: 71, username: 'gratis.robux', reason: 'scam', details: 'Verspricht kostenlose Robux und will Passwörter', status: 'open', createdAt: now - 3 * 3600e3, banned: false, count: 2 },
+        { id: 2, userId: 71, username: 'gratis.robux', reason: 'spam', details: '', status: 'open', createdAt: now - 5 * 3600e3, banned: false, count: 2 },
+      ],
+    },
   };
 }
 
@@ -47,7 +71,16 @@ function load(): DemoState {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const s = JSON.parse(raw) as DemoState;
-      return { ...s, profile: profileSchema.parse(s.profile), version: 0 };
+      // Files picked in the preview live only until the page reloads.
+      const dead = (u: string) => u.startsWith('blob:');
+      const profile = profileSchema.parse(s.profile);
+      if (profile.avatar && dead(profile.avatar)) profile.avatar = null;
+      if (dead(profile.banner)) profile.banner = '';
+      if (dead(profile.cursorImage)) profile.cursorImage = '';
+      if (dead(profile.media.url)) profile.media = { ...profile.media, url: '', type: 'none' };
+      if (dead(profile.music.url)) profile.music = { ...profile.music, url: '', source: '', mediaId: '' };
+      profile.widgets.gallery.images = profile.widgets.gallery.images.filter(u => !dead(u));
+      return { ...seed(), ...s, profile, files: [], version: 0 };
     }
   } catch { /* storage blocked or corrupt: fall back to sample data */ }
   return seed();

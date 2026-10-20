@@ -6,10 +6,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useToast } from '@/components/dashboard/Toast';
 import { BrandIcon } from '@/components/BrandIcon';
 import { Icon } from '@/components/icons';
-import { linkState, platformFor, type EditableLink, type LinkState } from '@/lib/links';
+import { LINK_EFFECTS, linkState, platformFor, type EditableLink, type LinkState } from '@/lib/links';
+import { PLATFORMS, platformByKey } from '@/lib/platforms';
 import type { Profile } from '@/lib/profile';
 import {
-  createLinkAction, deleteLinkAction, importLinksAction, reorderLinksAction, saveProfileAction, updateLinkAction, type Result,
+  createHeaderAction, createLinkAction, deleteLinkAction, importLinksAction, reorderLinksAction, saveProfileAction, updateLinkAction, type Result,
 } from '../actions';
 
 type Props = {
@@ -60,9 +61,10 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
     return () => window.removeEventListener('click', close);
   }, []);
 
-  const live = links.filter(l => linkState(l) === 'live').length;
+  const [heading, setHeading] = useState(false);
+  const live = links.filter(l => l.kind !== 'header' && linkState(l) === 'live').length;
   const top = useMemo(() => {
-    const best = [...links].sort((a, b) => (clicks[b.id] ?? 0) - (clicks[a.id] ?? 0))[0];
+    const best = [...links].filter(l => l.kind !== 'header').sort((a, b) => (clicks[b.id] ?? 0) - (clicks[a.id] ?? 0))[0];
     return best ? { link: best, n: clicks[best.id] ?? 0 } : null;
   }, [links, clicks]);
 
@@ -92,7 +94,7 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
     start(async () => {
       await deleteLinkAction(l.id);
       router.refresh();
-      toast(`„${l.title}“ gelöscht`, { action: { label: 'Rückgängig', run: () => run(createLinkAction({ title: l.title, url: l.url, startsAt: l.startsAt, endsAt: l.endsAt })) } });
+      toast(`„${l.title}“ gelöscht`, { action: { label: 'Rückgängig', run: () => run(l.kind === 'header' ? createHeaderAction(l.title) : createLinkAction({ title: l.title, url: l.url, startsAt: l.startsAt, endsAt: l.endsAt })) } });
     });
   };
 
@@ -134,8 +136,10 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
           </div>
 
           <div className="toolbar">
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setImporting(i => !i); setAdding(false); }}><Icon name="download" />Importieren</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setHeading(h => !h); setAdding(false); setImporting(false); }}><Icon name="menu" />Überschrift hinzufügen</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setImporting(i => !i); setAdding(false); setHeading(false); }}><Icon name="download" />Importieren</button>
           </div>
+          {heading && <AddHeader onDone={() => setHeading(false)} run={run} />}
 
           {adding && <AddLink onDone={() => setAdding(false)} run={run} />}
           {importing && <ImportLinks onDone={() => setImporting(false)} run={run} />}
@@ -152,6 +156,31 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
             {links.map((l, i) => {
               const st = linkState(l);
               const [pc, pl] = STATE_PILL[st];
+              const dnd = {
+                draggable: editing !== l.id,
+                onDragStart: (e: React.DragEvent) => { setDragId(l.id); e.dataTransfer.effectAllowed = 'move'; },
+                onDragOver: (e: React.DragEvent) => { e.preventDefault(); setOverId(l.id); },
+                onDragEnd: () => { setDragId(null); setOverId(null); },
+                onDrop: (e: React.DragEvent) => { e.preventDefault(); const from = links.findIndex(x => x.id === dragId); move(from, i); setDragId(null); setOverId(null); },
+              };
+              const grip = (
+                <button type="button" className="grip" aria-label={`${l.title} verschieben`}
+                  onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); move(i, i - 1); } if (e.key === 'ArrowDown') { e.preventDefault(); move(i, i + 1); } }}>
+                  <Icon name="grip" />
+                </button>
+              );
+              if (l.kind === 'header') return (
+                <div key={l.id} {...dnd} className={`lrow lrow-head${l.hidden ? ' is-off' : ''}${dragId === l.id ? ' dragging' : ''}${overId === l.id && dragId !== l.id ? ' drop-target' : ''}`}>
+                  {grip}
+                  <div className="lrow-main"><span className="label">Überschrift</span><b>{l.title}</b></div>
+                  <div className="lrow-side">
+                    <button type="button" className="icon-btn" aria-label="Umbenennen" title="Umbenennen" onClick={() => setEditing(e => (e === l.id ? null : l.id))}><Icon name="edit" /></button>
+                    <button type="button" className="icon-btn" aria-pressed={!l.hidden} aria-label={l.hidden ? 'Einblenden' : 'Ausblenden'} onClick={() => patch(l.id, { hidden: !l.hidden })}><Icon name={l.hidden ? 'eyeOff' : 'eye'} /></button>
+                    <button type="button" className="icon-btn" aria-label="Löschen" title="Löschen" onClick={() => remove(l)}><Icon name="trash" /></button>
+                  </div>
+                  {editing === l.id && <EditHeader link={l} onClose={() => setEditing(null)} onSave={title => { setLinks(list => list.map(x => (x.id === l.id ? { ...x, title } : x))); run(updateLinkAction(l.id, { title }), () => setEditing(null)); }} />}
+                </div>
+              );
               return (
                 <div key={l.id}
                   className={`lrow${st !== 'live' ? ' is-off' : ''}${dragId === l.id ? ' dragging' : ''}${overId === l.id && dragId !== l.id ? ' drop-target' : ''}`}
@@ -164,9 +193,9 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
                     onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); move(i, i - 1); } if (e.key === 'ArrowDown') { e.preventDefault(); move(i, i + 1); } }}>
                     <Icon name="grip" />
                   </button>
-                  <PlatIcon url={l.url} />
+                  <PlatIcon url={l.url} icon={l.icon} />
                   <div className="lrow-main">
-                    <b>{l.title}{st !== 'live' && <span className={`pill ${pc}`}>{st === 'scheduled' && l.startsAt ? `Ab ${new Date(l.startsAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : pl}</span>}</b>
+                    <b>{l.title}{l.effect !== 'none' && <span className="pill pill-dim">{LINK_EFFECTS.find(x => x[0] === l.effect)?.[1]}</span>}{st !== 'live' && <span className={`pill ${pc}`}>{st === 'scheduled' && l.startsAt ? `Ab ${new Date(l.startsAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : pl}</span>}</b>
                     <span className="url">{l.url}</span>
                   </div>
                   <div className="lrow-side">
@@ -200,8 +229,8 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
   );
 }
 
-function PlatIcon({ url, small }: { url: string; small?: boolean }) {
-  const p = platformFor(url);
+function PlatIcon({ url, icon, small }: { url: string; icon?: string; small?: boolean }) {
+  const p = icon ? platformByKey(icon) : platformFor(url);
   return (
     <span className="plat" style={{ background: `color-mix(in srgb, ${p.color} 18%, #111)`, color: p.color, ...(small ? { width: 30, height: 30, borderRadius: 9 } : {}) }}>
       <BrandIcon platform={p.key} />
@@ -228,6 +257,37 @@ function AddLink({ onDone, run }: { onDone: () => void; run: (p: Promise<Result>
   );
 }
 
+function AddHeader({ onDone, run }: { onDone: () => void; run: (p: Promise<Result>, after?: () => void) => void }) {
+  const [title, setTitle] = useState('');
+  return (
+    <form className="card card-pad stack" onSubmit={e => { e.preventDefault(); run(createHeaderAction(title), () => { setTitle(''); onDone(); }); }}>
+      <label className="field" htmlFor="nh-title">Überschrift
+        <span className="hint">Trennt deine Links in Bereiche, z. B. „Socials“, „Shop“ oder „Neueste Videos“. Zum Sortieren ziehen.</span>
+        <input className="in" id="nh-title" value={title} onChange={e => setTitle(e.target.value)} maxLength={60} autoFocus required />
+      </label>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone}>Abbrechen</button>
+        <button type="submit" className="btn btn-white btn-sm">Hinzufügen</button>
+      </div>
+    </form>
+  );
+}
+
+function EditHeader({ link, onClose, onSave }: { link: EditableLink; onClose: () => void; onSave: (title: string) => void }) {
+  const [title, setTitle] = useState(link.title);
+  return (
+    <form className="lrow-edit" onSubmit={e => { e.preventDefault(); onSave(title); }}>
+      <label className="field" htmlFor={`h-${link.id}`}>Überschrift<input className="in" id={`h-${link.id}`} value={title} onChange={e => setTitle(e.target.value)} maxLength={60} autoFocus /></label>
+      <div className="row" style={{ justifyContent: 'flex-end' }}>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Abbrechen</button>
+        <button type="submit" className="btn btn-white btn-sm">Speichern</button>
+      </div>
+    </form>
+  );
+}
+
+const ICON_CHOICES = [...PLATFORMS].sort((a, b) => a.label.localeCompare(b.label, 'de'));
+
 function ImportLinks({ onDone, run }: { onDone: () => void; run: (p: Promise<Result>, after?: () => void) => void }) {
   const [text, setText] = useState('');
   return (
@@ -249,13 +309,26 @@ function EditLink({ link, onClose, onSave }: { link: EditableLink; onClose: () =
   const [url, setUrl] = useState(link.url);
   const [startsAt, setStartsAt] = useState(toInput(link.startsAt));
   const [endsAt, setEndsAt] = useState(toInput(link.endsAt));
+  const [effect, setEffect] = useState(link.effect);
+  const [icon, setIcon] = useState(link.icon);
   return (
-    <form className="lrow-edit" onSubmit={e => { e.preventDefault(); onSave({ title, url, startsAt: fromInput(startsAt), endsAt: fromInput(endsAt) }); }}>
+    <form className="lrow-edit" onSubmit={e => { e.preventDefault(); onSave({ title, url, startsAt: fromInput(startsAt), endsAt: fromInput(endsAt), effect, icon }); }}>
       <div className="grid-2">
         <label className="field" htmlFor={`t-${link.id}`}>Titel<input className="in" id={`t-${link.id}`} value={title} onChange={e => setTitle(e.target.value)} maxLength={80} /></label>
         <label className="field" htmlFor={`u-${link.id}`}>Adresse<input className="in mono" id={`u-${link.id}`} value={url} onChange={e => setUrl(e.target.value)} autoCapitalize="off" spellCheck={false} /></label>
         <label className="field" htmlFor={`s-${link.id}`}>Sichtbar ab <span className="hint" style={{ marginTop: -4 }}>leer = sofort</span><input className="in" type="datetime-local" id={`s-${link.id}`} value={startsAt} onChange={e => setStartsAt(e.target.value)} /></label>
         <label className="field" htmlFor={`e-${link.id}`}>Sichtbar bis <span className="hint" style={{ marginTop: -4 }}>leer = unbegrenzt</span><input className="in" type="datetime-local" id={`e-${link.id}`} value={endsAt} onChange={e => setEndsAt(e.target.value)} /></label>
+        <label className="field" htmlFor={`fx-${link.id}`}>Effekt <span className="hint" style={{ marginTop: -4 }}>lenkt den Blick auf diesen Link</span>
+          <select className="in" id={`fx-${link.id}`} value={effect} onChange={e => setEffect(e.target.value as EditableLink['effect'])}>
+            {LINK_EFFECTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </label>
+        <label className="field" htmlFor={`ic-${link.id}`}>Symbol <span className="hint" style={{ marginTop: -4 }}>automatisch = passend zur Adresse</span>
+          <select className="in" id={`ic-${link.id}`} value={icon} onChange={e => setIcon(e.target.value)}>
+            <option value="">Automatisch ({platformFor(url).label})</option>
+            {ICON_CHOICES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+        </label>
       </div>
       <div className="row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Abbrechen</button>

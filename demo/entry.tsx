@@ -1,10 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import { Shell } from '@/components/dashboard/Shell';
+import { uploader } from '@/components/dashboard/UploadField';
 import { normalizeUrl } from '@/lib/links';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { usernameError } from '@/lib/profile';
 import {
-  AnalyticsPage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
+  AdminPage, AnalyticsPage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
 } from './pages';
 import { nav, parseUrl, useUrl } from './router';
 import { getState, reset, update, useDemo } from './store';
@@ -18,6 +19,8 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const json = (v: unknown) => new Response(JSON.stringify(v), { headers: { 'content-type': 'application/json' } });
   if (u.startsWith('/api/track')) return json({ ok: true });
   if (u.startsWith('/api/live/twitch')) return json({ live: false });
+  if (u.startsWith('/api/stats/live')) return json({ live: 3 });
+  if (u.startsWith('/api/report')) return json({ ok: true });
   if (u.startsWith('/api/username')) {
     const name = new URLSearchParams(u.split('?')[1]).get('name') || '';
     const error = usernameError(name) ?? (RESERVED_USERNAMES.has(name) ? 'Dieser Name ist für die Plattform reserviert.' : null);
@@ -26,6 +29,17 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     return json({ available: !taken, error: taken ? `${name} ist schon vergeben.` : null });
   }
   return realFetch(input, init);
+};
+
+// Uploads stay in this browser tab (object URLs) instead of going to a server.
+uploader.send = async (file, accept) => {
+  const kind = file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : file.type.startsWith('image/') ? 'image' : null;
+  const allowed = accept === 'audio' ? ['audio'] : accept === 'image' ? ['image'] : ['image', 'video'];
+  if (!kind || !allowed.includes(kind)) return { error: 'Dieser Dateityp geht hier nicht.' };
+  if (file.size > (kind === 'video' ? 40 : kind === 'audio' ? 20 : 8) * 1024 * 1024) return { error: 'Die Datei ist zu groß.' };
+  const url = URL.createObjectURL(file);
+  update(s => ({ files: [{ id: file.name.slice(0, 40), kind, size: file.size, createdAt: Date.now(), url }, ...s.files] }));
+  return { url, kind };
 };
 
 // Internal links (/dashboard…, /<name>) navigate in-page; click redirects (/r/<id>) open the real address.
@@ -45,7 +59,7 @@ document.addEventListener('click', e => {
 
 function Router() {
   const url = useUrl();
-  const { user, profile } = useDemo();
+  const { user, profile, admin } = useDemo();
   const { path, params } = parseUrl(url);
   if (path === '/' || path === '/login') return <LandingPage />;
   if (path.startsWith('/dashboard')) {
@@ -58,9 +72,10 @@ function Router() {
       : path === '/dashboard/connections' ? <ConnectionsPage />
       : path === '/dashboard/share' ? <SharePage />
       : path === '/dashboard/settings' ? <SettingsPage />
+      : path === '/dashboard/admin' ? <AdminPage params={params} />
       : <OverviewPage />;
     return (
-      <Shell brand={BRAND} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username }}>
+      <Shell brand={BRAND} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner: true, openReports: admin.reports.filter(r => r.status === 'open').length }}>
         {page}
       </Shell>
     );

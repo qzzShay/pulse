@@ -18,6 +18,13 @@ Link-in-Bio-Plattform für Creator, Gamer, Artists, Musiker:innen, Streamer und 
 - **Badges** mit eigener Farbe je Badge, drei Darstellungsarten, bis zu 6 eigene Badges mit Symbol und Farbe; Owner-, OG- und Premium-Badges werden serverseitig geprüft.
 - **Bot-Schutz:** Proof-of-Work bei Registrierung und Login (ohne Captcha-Dienst, funktioniert auch über HTTP), Honeypot-Feld, Limits pro IP und insgesamt, signierte Aufruf-Tokens, Klicks zählen nur nach einem echten Seitenaufruf und einmal pro 30 Minuten, Erkennung automatisierter Browser, harte Grenzen gegen Fluten der Datenbank, begrenzte Namensprüfung.
 - **Statistik ohne Rauschen:** Klicks laufen über `/r/<id>`. Bots (User-Agent), Link-Vorschauen, Reloads innerhalb von 30 Minuten und Aufrufe der eigenen Person werden getrennt gespeichert und nicht mitgezählt. Besucher werden über einen täglich wechselnden Hash gezählt, IP-Adressen werden nicht gespeichert.
+- **Uploads:** Avatar (auch animiertes GIF), Banner, eigenes Hintergrundbild oder -video (mit Unschärfe, Abdunkeln und Effekt darüber), eigener Cursor, Profilsong als Datei, Galerie mit bis zu 12 Bildern. Der Dateityp wird an den ersten Bytes erkannt, nicht am Namen; Limits 8 MB (Bild), 40 MB (Video), 20 MB (Audio), Speicher 100 MB pro Konto (Owner 1 GB). Übersicht und Löschen unter Einstellungen → Speicher.
+- **Profil-Extras:** Pronomen, Schreibmaschinen-Bio mit wechselnden Zeilen, eigener Tab-Titel mit Tipp- oder Laufschrift-Animation, Avatar als Tab-Symbol, automatisches Vorschaubild (Open Graph) für Discord, X und WhatsApp.
+- **Links:** Überschriften zwischen Links, Effekte pro Link (Pulsieren, Wackeln, Leuchten, Glanz), eigenes Symbol pro Link.
+- **Sicherheit:** Zwei-Faktor-Anmeldung per Authenticator-App (TOTP), „Andere Geräte abmelden“, Passwort- und 2FA-Änderungen melden alte Sitzungen ab.
+- **Admin-Bereich** (nur Owner): Plattform-Zahlen, Konten suchen, Plan ändern, Badges „Verifiziert“ und „Partner“ vergeben, sperren mit Grund (Seite verschwindet, Anmeldung zeigt den Grund), Konten löschen, Meldungen bearbeiten, Registrierung öffnen.
+- **Melden:** Besucher können ein Profil anonym melden (Grund und Details, begrenzt pro Adresse).
+- **Statistik-Extras:** Export als CSV, Live-Zähler „gerade auf deiner Seite“ (letzte 5 Minuten).
 - **Konten:** Das erste Konto wird Owner (Plan Legend, OG-Badge). Danach ist die Registrierung geschlossen, bis der Owner sie unter Einstellungen → Plattform öffnet.
 
 ## Technik

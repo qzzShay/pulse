@@ -29,7 +29,13 @@ export const NAV = [
   ] },
 ] as const;
 
+/** Only shown to the platform owner. */
+export const ADMIN_NAV = [
+  { section: 'Owner', items: [{ href: '/dashboard/admin', label: 'Admin', icon: 'users' }] },
+] as const;
+
 export const CRUMBS: Record<string, string> = {
+  '/dashboard/admin': 'Admin',
   '/dashboard': 'Übersicht',
   '/dashboard/analytics': 'Statistik',
   '/dashboard/profile': 'Profil',
@@ -71,5 +77,17 @@ export const SEARCH_INDEX = [
   { label: 'Statistik', href: '/dashboard/analytics', group: 'Statistik' },
   { label: 'Name ändern', href: '/dashboard/settings', group: 'Konto' },
   { label: 'Passwort ändern', href: '/dashboard/settings', group: 'Konto' },
+  { label: 'Zwei-Faktor-Anmeldung (2FA)', href: '/dashboard/settings', group: 'Konto' },
+  { label: 'Speicher und Uploads', href: '/dashboard/settings', group: 'Konto' },
+  { label: 'Andere Geräte abmelden', href: '/dashboard/settings', group: 'Konto' },
+  { label: 'Banner', href: '/dashboard/profile?tab=you', group: 'Profil' },
+  { label: 'Pronomen', href: '/dashboard/profile?tab=you', group: 'Profil' },
+  { label: 'Schreibmaschinen-Bio', href: '/dashboard/profile?tab=you', group: 'Profil' },
+  { label: 'Eigenes Hintergrundbild oder -video', href: '/dashboard/profile?tab=page', group: 'Seite' },
+  { label: 'Eigener Cursor', href: '/dashboard/profile?tab=page', group: 'Seite' },
+  { label: 'Tab-Titel und Animation', href: '/dashboard/profile?tab=page', group: 'Seite' },
+  { label: 'Überschriften zwischen Links', href: '/dashboard/links', group: 'Links' },
+  { label: 'Link-Effekte (Pulsieren, Leuchten …)', href: '/dashboard/links', group: 'Links' },
+  { label: 'Statistik als CSV exportieren', href: '/dashboard/analytics', group: 'Statistik' },
   { label: 'Registrierung öffnen', href: '/dashboard/settings', group: 'Konto' },
 ];

@@ -1,7 +1,7 @@
 import 'server-only';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db, ready, schema } from './db';
-import { linkState, type EditableLink, type PublicLink } from './links';
+import { LINK_EFFECTS, linkState, type EditableLink, type LinkEffect, type PublicLink } from './links';
 import { parseProfile, profileSchema, type Profile } from './profile';
 
 const { users, profiles, links, appSettings } = schema;
@@ -15,6 +15,12 @@ export async function userCount() {
 export async function getUserByUsername(username: string) {
   await ready();
   const [u] = await db.select().from(users).where(eq(users.username, username.toLowerCase())).limit(1);
+  return u ?? null;
+}
+
+export async function getUserById(id: number) {
+  await ready();
+  const [u] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return u ?? null;
 }
 
@@ -37,13 +43,17 @@ export async function saveProfile(userId: number, data: unknown): Promise<Profil
 export async function getLinks(userId: number): Promise<EditableLink[]> {
   await ready();
   const rows = await db.select().from(links).where(eq(links.userId, userId)).orderBy(asc(links.position));
-  return rows.map(r => ({ id: r.id, title: r.title, url: r.url, pinned: r.pinned, hidden: r.hidden, startsAt: r.startsAt, endsAt: r.endsAt, position: r.position }));
+  return rows.map(r => ({
+    id: r.id, title: r.title, url: r.url, pinned: r.pinned, hidden: r.hidden, startsAt: r.startsAt, endsAt: r.endsAt, position: r.position,
+    kind: r.kind === 'header' ? 'header' : 'link', effect: (LINK_EFFECTS.some(e => e[0] === r.effect) ? r.effect : 'none') as LinkEffect, icon: r.icon ?? '',
+  }));
 }
 
-/** Links a visitor sees right now: live ones, pinned first. */
+/** Links a visitor sees right now: live ones, pinned first. Headers keep their place among the others. */
 export function publicLinks(all: EditableLink[], now = Date.now()): PublicLink[] {
   const live = all.filter(l => linkState(l, now) === 'live');
-  return [...live.filter(l => l.pinned), ...live.filter(l => !l.pinned)].map(({ id, title, url, pinned }) => ({ id, title, url, pinned }));
+  return [...live.filter(l => l.pinned && l.kind === 'link'), ...live.filter(l => !l.pinned || l.kind === 'header')]
+    .map(({ id, title, url, pinned, kind, effect, icon }) => ({ id, title, url, pinned: pinned && kind === 'link', kind, effect, icon }));
 }
 
 export async function linkOwnedBy(linkId: string, userId: number) {

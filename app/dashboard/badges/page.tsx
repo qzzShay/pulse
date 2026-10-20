@@ -10,7 +10,7 @@ export default async function BadgesPage() {
   return (
     <BadgePicker
       initial={{ badges: profile.badges, badgeStyle: profile.badgeStyle, customBadges: profile.customBadges }}
-      user={{ uid: user.id, owner: user.role === 'owner', premium: user.plan !== 'free' }}
+      user={{ uid: user.id, owner: user.role === 'owner', premium: user.plan !== 'free', granted: user.granted.split(',').filter(Boolean) }}
     />
   );
 }
