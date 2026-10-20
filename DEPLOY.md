@@ -26,9 +26,9 @@ Pulse läuft auf dem Server in Docker: ein Container für die App, einer für Ca
    sudo bash deploy/setup.sh pulse.deinedomain.de
    ```
    Das Skript installiert Docker, öffnet in der Firewall nur SSH, HTTP und HTTPS, erzeugt die `.env` mit einem zufälligen `SESSION_SECRET`, baut die App, startet alles und richtet das nächtliche Backup ein. Der erste Build dauert ein paar Minuten.
-3. `https://pulse.deinedomain.de/login` öffnen und dein Owner-Konto anlegen.
+3. `https://pulse.deinedomain.de/login` öffnen und dein Owner-Konto anlegen. Danach ist die Registrierung geschlossen, bis du sie unter **Einstellungen → Plattform** öffnest.
 
-**Ohne Domain (zum Testen):** `sudo bash deploy/setup.sh` ohne Domain starten. Die Seite läuft dann unter `http://SERVER-IP` mit normalem HTTP. Der Browser zeigt „Nicht sicher“, Passwörter werden unverschlüsselt übertragen. Für den echten Betrieb später eine Domain eintragen: in `.env` `DOMAIN` und `SITE_URL=https://…` setzen, die Zeile `CADDYFILE=…` löschen und `docker compose up -d` ausführen. Danach ist die Registrierung geschlossen, bis du sie unter **Einstellungen → Plattform** öffnest.
+**Ohne Domain (zum Testen):** `sudo bash deploy/setup.sh` ohne Domain starten. Die Seite läuft dann unter `http://SERVER-IP` mit normalem HTTP. Der Browser zeigt „Nicht sicher“, Passwörter werden unverschlüsselt übertragen. Für den echten Betrieb später eine Domain eintragen: in `.env` `DOMAIN` und `SITE_URL=https://…` setzen, die Zeile `CADDYFILE=…` löschen und `docker compose up -d` ausführen.
 
 ## Alltag
 
