@@ -79,7 +79,9 @@ export function AuthForm({ mode, signupOpen, firstUser, next, initialName, brand
               </>
             )}
             {state?.error && <p className="err" role="alert">{state.error}</p>}
-            {pow.status === 'error' && <p className="err" role="alert">{pow.error}</p>}
+            {pow.status === 'error' && (
+              <p className="err" role="alert">{pow.error} <button type="button" className="link-btn" onClick={pow.retry}>Erneut versuchen</button></p>
+            )}
             <button className="btn btn-white" type="submit" disabled={pending || !!nameErr || pow.status !== 'ready'}>
               {pending ? 'Einen Moment …' : pow.status === 'working' ? 'Sicherheitsprüfung läuft …' : mode === 'login' ? 'Anmelden' : 'Konto erstellen'}
             </button>

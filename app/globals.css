@@ -793,3 +793,4 @@ th.r, td.r { text-align: right; }
 
 .adm-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 900px) { .adm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.link-btn { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }

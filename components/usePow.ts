@@ -1,12 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /* Solves the server's proof-of-work challenge in the background as soon as the form appears.
    Uses its own SHA-256 because crypto.subtle is missing on plain-HTTP pages (IP-only setups). */
 
 type Challenge = { salt: string; bits: number; exp: number; sig: string };
-export type PowState = { status: 'working' | 'ready' | 'error'; token: string; error?: string };
+export type PowState = { status: 'working' | 'ready' | 'error'; token: string; error?: string; retry: () => void };
+
+/** Server must see the challenge at least this old (its MIN_AGE is 1500 ms) before the form is sent. */
+const MIN_AGE = 1700;
+/** Give up and offer a retry instead of spinning forever. */
+const TIMEOUT = 30000;
+
+/* Yield to the browser between batches. MessageChannel is not throttled in background tabs the way setTimeout is. */
+const channel = typeof MessageChannel !== 'undefined' ? new MessageChannel() : null;
+const queue: (() => void)[] = [];
+if (channel) channel.port1.onmessage = () => queue.shift()?.();
+const yieldNow = () => new Promise<void>(r => { if (channel) { queue.push(r); channel.port2.postMessage(0); } else setTimeout(r, 0); });
 
 const K = new Uint32Array([
   0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
@@ -49,40 +60,48 @@ function sha256Head(msg: string): number {
 
 async function solve(c: Challenge, alive: () => boolean): Promise<string | null> {
   const prefix = `${c.salt}:`;
-  const limit = 2 ** Math.min(c.bits, 31);
-  for (let n = 0; n < limit * 64 && alive(); ) {
-    const end = n + 20000;
-    for (; n < end; n++) if (Math.clz32(sha256Head(prefix + n)) >= c.bits) return String(n);
-    await new Promise(r => setTimeout(r, 0)); // keep the page responsive
+  const limit = 2 ** Math.min(c.bits, 31) * 64;
+  for (let n = 0; n < limit && alive(); ) {
+    // Work in ~40 ms slices so typing stays smooth.
+    const stop = performance.now() + 40;
+    while (performance.now() < stop && n < limit) {
+      for (const end = n + 2000; n < end; n++) if (Math.clz32(sha256Head(prefix + n)) >= c.bits) return String(n);
+    }
+    await yieldNow();
   }
   return null;
 }
 
 /** `round` changes after every submit: each solution is accepted only once, so a new one is fetched. */
 export function usePow(kind: 'login' | 'register', round = 0): PowState {
-  const [state, setState] = useState<PowState>({ status: 'working', token: '' });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt(a => a + 1), []);
+  const [state, setState] = useState<Omit<PowState, 'retry'>>({ status: 'working', token: '' });
   useEffect(() => {
     let alive = true;
+    const fail = (error: string) => { if (alive) { alive = false; setState({ status: 'error', token: '', error }); } };
+    const watchdog = setTimeout(() => fail('Die Sicherheitsprüfung dauert ungewöhnlich lange. Versuch es noch einmal.'), TIMEOUT);
     setState({ status: 'working', token: '' });
     (async () => {
       try {
         const res = await fetch(`/api/pow?kind=${kind}`, { cache: 'no-store' });
-        const c = await res.json();
-        if (!res.ok) throw new Error(c.error || 'Die Sicherheitsprüfung konnte nicht geladen werden.');
+        const c = await res.json().catch(() => ({}));
+        if (!res.ok || !c.salt) throw new Error(c.error || 'Die Sicherheitsprüfung konnte nicht geladen werden.');
+        // Measured with this browser's own clock: the server's clock may differ from it by minutes.
+        const received = performance.now();
         const nonce = await solve(c as Challenge, () => alive);
         if (!alive) return;
-        if (nonce === null) throw new Error('Die Sicherheitsprüfung ist fehlgeschlagen. Lade die Seite neu.');
-        // The server rejects solutions younger than its minimum age; wait it out instead of showing an error.
-        const issued = parseInt(String(c.salt).split('.')[0], 36);
-        const wait = issued + 1700 - Date.now();
+        if (nonce === null) throw new Error('Die Sicherheitsprüfung ist fehlgeschlagen. Versuch es noch einmal.');
+        const wait = received + MIN_AGE - performance.now();
         if (wait > 0) await new Promise(r => setTimeout(r, wait));
         if (!alive) return;
+        clearTimeout(watchdog);
         setState({ status: 'ready', token: JSON.stringify({ ...c, nonce }) });
       } catch (e) {
-        if (alive) setState({ status: 'error', token: '', error: e instanceof Error ? e.message : 'Die Sicherheitsprüfung ist fehlgeschlagen.' });
+        fail(e instanceof Error && e.message !== 'Failed to fetch' ? e.message : 'Keine Verbindung zum Server. Versuch es noch einmal.');
       }
     })();
-    return () => { alive = false; };
-  }, [kind, round]);
-  return state;
+    return () => { alive = false; clearTimeout(watchdog); };
+  }, [kind, round, attempt]);
+  return { ...state, retry };
 }
