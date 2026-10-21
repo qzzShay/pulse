@@ -8,13 +8,16 @@ import { applyNiche, profileSchema, type Profile } from '@/lib/profile';
 export type DemoUser = { id: number; username: string; email: string | null; plan: 'free' | 'pro' | 'legend'; role: 'owner' | 'user'; createdAt: number };
 export type DemoState = {
   user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number;
-  totp: boolean; aliases: string[]; likes: number; liked: boolean;
+  totp: boolean; aliases: string[];
+  guestbook: { id: number; author: string; message: string; status: 'pending' | 'approved'; createdAt: number }[];
+  friends: { id: number; username: string; name: string; accent: string; avatar: boolean }[];
+  snapshots: { id: number; label: string; createdAt: number; data: string }[]; likes: number; liked: boolean;
   invites: { code: string; note: string; usedAt: number | null; createdAt: number; usedBy: string | null }[];
   announcement: { id: string; text: string; tone: 'info' | 'good' | 'warn' } | null; webhook: string;
   files: { id: string; kind: string; size: number; createdAt: number; url: string }[]; admin: { users: AdminUser[]; reports: AdminReport[] };
 };
 
-const KEY = 'pulse-demo-v4';
+const KEY = 'pulse-demo-v5';
 const day = 864e5;
 
 function seed(): DemoState {
@@ -36,6 +39,9 @@ function seed(): DemoState {
   profile.tabAnim = 'scroll';
   profile.widgets.countdown = { on: true, title: 'Community-Turnier', at: Date.now() + 3 * day + 5 * 3600e3, done: 'Wir sind live!' };
   profile.widgets.clock = { on: true, tz: 'Europe/Berlin', label: 'Berlin' };
+  profile.guestbook = { on: true, autoApprove: false };
+  profile.secret = { on: true, message: 'Du hast es gefunden! Code NOVA10 = 10 % im Merch-Shop.', trigger: 'both' };
+  profile.showLive = true;
   profile.customBadges = [{ id: 'team', label: 'Team Nova', icon: 'flame', color: '#ffcf5c', on: true }];
   profile.connections = [
     { platform: 'steam', handle: 'nova' }, { platform: 'twitch', handle: 'nova_live' }, { platform: 'valorant', handle: 'Nova#EUW' },
@@ -43,7 +49,7 @@ function seed(): DemoState {
   ];
   const now = Date.now();
   const L = (id: string, title: string, url: string, position: number, extra: Partial<EditableLink> = {}): EditableLink =>
-    ({ id, title, url, pinned: false, hidden: false, startsAt: null, endsAt: null, position, kind: 'link', effect: 'none', icon: '', ...extra });
+    ({ id, title, url, pinned: false, hidden: false, startsAt: null, endsAt: null, position, kind: 'link', effect: 'none', icon: '', device: 'all', gate: 'none', hasSecret: false, ...extra });
   const links: EditableLink[] = [
     L('l1', 'Live auf Twitch', 'https://www.twitch.tv/', 0, { pinned: true }),
     L('l2', 'Instagram', 'https://www.instagram.com/', 1),
@@ -51,11 +57,24 @@ function seed(): DemoState {
     L('h1', 'Mehr von mir', '', 3, { kind: 'header' }),
     L('l4', 'Neues Video auf YouTube', 'https://www.youtube.com/', 4, { effect: 'glow' }),
     L('l5', 'Community-Turnier Anmeldung', 'https://discord.gg/', 5, { startsAt: now + 3 * day }),
+    L('l7', 'VIP-Discord (Passwort: nova)', 'https://discord.gg/', 7, { gate: 'password', hasSecret: true }),
+    L('l8', 'Gratis-Wallpaper', 'https://www.dropbox.com/', 8, { gate: 'like' }),
     L('l6', 'Peak', 'https://open.spotify.com/track/3MrUH8Uj3jZSJFkhXanyMC', 6),
   ];
   return {
     user: { id: 42, username: 'nova', email: null, plan: 'legend', role: 'owner', createdAt: now - 21 * day },
     profile, links, signupOpen: false, clicks: {}, version: 0, totp: false, files: [],
+    guestbook: [
+      { id: 1, author: 'Kai', message: 'GG im Turnier gestern, Revanche nächste Woche!', status: 'approved', createdAt: now - 3 * 3600e3 },
+      { id: 2, author: 'Mira', message: 'Dein neues Overlay ist richtig schön geworden.', status: 'approved', createdAt: now - day },
+      { id: 3, author: 'Lena', message: 'Kannst du mal einen Valorant-Guide machen?', status: 'pending', createdAt: now - 40 * 60e3 },
+    ],
+    friends: [
+      { id: 57, username: 'kai', name: 'Kai', accent: '#7cf3e4', avatar: false },
+      { id: 63, username: 'mira', name: 'Mira', accent: '#ff8bd1', avatar: false },
+      { id: 80, username: 'z', name: 'Zed', accent: '#ffcf5c', avatar: false },
+    ],
+    snapshots: [],
     aliases: ['n0va'], likes: 248, liked: false, webhook: '',
     announcement: { id: 'demo1', text: 'Neu: Likes, Entdecken-Seite, Countdown und Einladungscodes.', tone: 'good' },
     invites: [
@@ -91,7 +110,8 @@ function load(): DemoState {
       if (dead(profile.media.url)) profile.media = { ...profile.media, url: '', type: 'none' };
       if (dead(profile.music.url)) profile.music = { ...profile.music, url: '', source: '', mediaId: '' };
       profile.widgets.gallery.images = profile.widgets.gallery.images.filter(u => !dead(u));
-      return { ...seed(), ...s, profile, files: [], version: 0 };
+      const links = s.links.map(l => ({ device: 'all' as const, gate: 'none' as const, hasSecret: false, ...l }));
+      return { ...seed(), ...s, profile, links, files: [], version: 0 };
     }
   } catch { /* storage blocked or corrupt: fall back to sample data */ }
   return seed();

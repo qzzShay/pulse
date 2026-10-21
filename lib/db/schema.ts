@@ -48,6 +48,12 @@ export const links = sqliteTable('links', {
   effect: text('effect').notNull().default('none'),
   /** Platform key to override the detected icon, or '' for automatic. */
   icon: text('icon').notNull().default(''),
+  /** all | mobile | desktop: who sees the link. */
+  device: text('device').notNull().default('all'),
+  /** none | password | like: what unlocks the link. */
+  gate: text('gate').notNull().default('none'),
+  /** SHA-256 of the link password (gate = password). */
+  gateSecret: text('gate_secret').notNull().default(''),
 });
 
 export const events = sqliteTable('events', {
@@ -119,3 +125,30 @@ export const likes = sqliteTable('likes', {
 });
 
 export type InviteRow = typeof invites.$inferSelect;
+
+export const guestbook = sqliteTable('guestbook', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  author: text('author').notNull(),
+  message: text('message').notNull(),
+  status: text('status', { enum: ['pending', 'approved'] }).notNull().default('pending'),
+  writer: text('writer').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** Friendship requests; accepted rows are mutual. */
+export const friends = sqliteTable('friends', {
+  requester: integer('requester').notNull(),
+  addressee: integer('addressee').notNull(),
+  status: text('status', { enum: ['pending', 'accepted'] }).notNull().default('pending'),
+  createdAt: integer('created_at').notNull(),
+});
+
+/** Earlier versions of a profile, for undo. */
+export const snapshots = sqliteTable('snapshots', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  data: text('data').notNull(),
+  label: text('label').notNull().default(''),
+  createdAt: integer('created_at').notNull(),
+});

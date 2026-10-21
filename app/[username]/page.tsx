@@ -1,8 +1,12 @@
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { PublicProfile } from '@/components/profile/PublicProfile';
-import { totalViews } from '@/lib/analytics';
+import { headers } from 'next/headers';
+import { deviceOf, totalViews } from '@/lib/analytics';
 import { aliasOwner, likeCount } from '@/lib/community';
+import { ACHIEVEMENTS, progress } from '@/lib/achievements';
+import { achievementStats } from '@/lib/stats';
+import { friendsOf, guestEntries } from '@/lib/social';
 import { BRAND, SITE_HOST } from '@/lib/config';
 import { getLinks, getProfile, getUserByUsername, publicLinks } from '@/lib/data';
 import { viewToken } from '@/lib/pow';
@@ -36,11 +40,20 @@ export default async function ProfileRoute({ params }: Params) {
     notFound();
   }
   if (user.bannedReason) notFound();
+  const ua = (await headers()).get('user-agent') ?? '';
+  const device = deviceOf(ua) === 'desktop' ? 'desktop' as const : 'mobile' as const;
   const [profile, links, views, likes] = await Promise.all([getProfile(user.id), getLinks(user.id), totalViews(user.id), likeCount(user.id)]);
+  const [prog, friends, guestbook] = await Promise.all([
+    achievementStats(user, profile).then(progress),
+    profile.showFriends ? friendsOf(user.id) : Promise.resolve([]),
+    profile.guestbook.on ? guestEntries(user.id, true, 12) : Promise.resolve([]),
+  ]);
   return (
     <PublicProfile
+      social={{ friends, guestbook: guestbook.map(({ id, author, message, createdAt }) => ({ id, author, message, createdAt })) }}
+      level={{ level: prog.level, pct: prog.pct, count: prog.unlocked.length, total: ACHIEVEMENTS.length }}
       profile={profile}
-      links={publicLinks(links)}
+      links={publicLinks(links, Date.now(), device)}
       user={{ username: user.username, uid: user.id, views }}
       host={SITE_HOST}
       brand={BRAND}

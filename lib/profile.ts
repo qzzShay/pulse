@@ -134,6 +134,16 @@ export const profileSchema = z.object({
   showLikes: z.boolean().default(true),
   /** Visitors confirm a warning before the profile opens (e.g. 18+, flashing lights). */
   contentWarning: z.object({ on: z.boolean().default(false), text: z.string().max(120).default('') }).default({}),
+  /** Avatar ring and card pulse with the profile song. */
+  visualizer: z.boolean().default(true),
+  /** Level chip and achievements on the card. */
+  showLevel: z.boolean().default(true),
+  /** "3 schauen gerade" on the card. */
+  showLive: z.boolean().default(false),
+  /** Hidden message, revealed with the Konami code or five clicks on the avatar. */
+  secret: z.object({ on: z.boolean().default(false), message: z.string().max(200).default(''), trigger: z.enum(['konami', 'avatar', 'both']).default('both') }).default({}),
+  guestbook: z.object({ on: z.boolean().default(false), autoApprove: z.boolean().default(false) }).default({}),
+  showFriends: z.boolean().default(true),
   showViews: z.boolean().default(true),
   socialRow: z.boolean().default(false),
 

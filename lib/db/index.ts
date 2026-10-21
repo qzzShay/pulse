@@ -89,6 +89,32 @@ const SCHEMA_SQL = [
     created_at INTEGER NOT NULL,
     PRIMARY KEY (user_id, liker)
   )`,
+  `CREATE TABLE IF NOT EXISTS guestbook (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    author TEXT NOT NULL,
+    message TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    writer TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS guestbook_user ON guestbook(user_id, status, created_at)`,
+  `CREATE TABLE IF NOT EXISTS friends (
+    requester INTEGER NOT NULL,
+    addressee INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (requester, addressee)
+  )`,
+  `CREATE INDEX IF NOT EXISTS friends_addressee ON friends(addressee)`,
+  `CREATE TABLE IF NOT EXISTS snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    data TEXT NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS snapshots_user ON snapshots(user_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -107,6 +133,9 @@ const MIGRATIONS = [
   `ALTER TABLE users ADD COLUMN granted TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE users ADD COLUMN name_changed_at INTEGER`,
   `ALTER TABLE users ADD COLUMN invited_with TEXT`,
+  `ALTER TABLE links ADD COLUMN device TEXT NOT NULL DEFAULT 'all'`,
+  `ALTER TABLE links ADD COLUMN gate TEXT NOT NULL DEFAULT 'none'`,
+  `ALTER TABLE links ADD COLUMN gate_secret TEXT NOT NULL DEFAULT ''`,
 ];
 
 async function migrate(client: Client) {

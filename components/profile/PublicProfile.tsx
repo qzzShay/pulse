@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FxStage } from '@/components/fx/FxStage';
 import type { PublicLink } from '@/lib/links';
 import type { Profile } from '@/lib/profile';
 import { musicBus } from './MusicPlayer';
 import { ProfileCard, type CardUser } from './ProfileCard';
 import { ReportButton } from './ReportButton';
-import { ContentWarning } from './Extras';
+import { ContentWarning, SecretOverlay } from './Extras';
+import type { SocialEntry, SocialFriend } from './Social';
 
 /** Animates the browser tab title: typed out letter by letter, or scrolling like a marquee. */
 function useTabTitle(title: string, anim: Profile['tabAnim']) {
@@ -37,9 +38,9 @@ function useFavicon(src: string | null) {
   }, [src]);
 }
 
-type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string; likes?: number };
+type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string; likes?: number; level?: { level: number; pct: number; count: number; total: number } | null; social?: { friends: SocialFriend[]; guestbook: SocialEntry[] } };
 
-export function PublicProfile({ profile, links, user, host, brand, viewToken, likes = 0 }: Props) {
+export function PublicProfile({ profile, links, user, host, brand, viewToken, likes = 0, level = null, social }: Props) {
   const [warned, setWarned] = useState(!profile.contentWarning.on);
   const [entered, setEntered] = useState(!profile.enterScreen);
   const [gone, setGone] = useState(!profile.enterScreen);
@@ -67,6 +68,48 @@ export function PublicProfile({ profile, links, user, host, brand, viewToken, li
     }).catch(() => {});
   }, [user.username, viewToken]);
 
+  const [secret, setSecret] = useState(false);
+  const closeSecret = useCallback(() => setSecret(false), []);
+  const [liveNow, setLiveNow] = useState<number | null>(null);
+
+  // Easter egg: Konami code (↑↑↓↓←→←→BA) or five quick taps on the avatar.
+  useEffect(() => {
+    if (!profile.secret.on || !profile.secret.message) return;
+    const seq = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+    let i = 0;
+    const onKey = (e: KeyboardEvent) => {
+      if (profile.secret.trigger === 'avatar') return;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      i = k === seq[i] ? i + 1 : k === seq[0] ? 1 : 0;
+      if (i === seq.length) { i = 0; setSecret(true); }
+    };
+    const onTap = () => setSecret(true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pulse-secret', onTap);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('pulse-secret', onTap); };
+  }, [profile.secret]);
+
+  // "3 hier": refreshed every 30 seconds while the tab is visible.
+  useEffect(() => {
+    if (!profile.showLive) return;
+    const load = () => { if (!document.hidden) fetch(`/api/presence?u=${encodeURIComponent(user.username)}`, { cache: 'no-store' }).then(r => r.json()).then(j => setLiveNow(typeof j.live === 'number' ? j.live : null)).catch(() => {}); };
+    const first = setTimeout(load, 1500), t = setInterval(load, 30000);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [profile.showLive, user.username]);
+
+  // Keys 1–9 open the matching link.
+  useEffect(() => {
+    if (!gone) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || !/^[1-9]$/.test(e.key)) return;
+      if ((e.target as HTMLElement).closest?.('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+      const a = document.querySelectorAll<HTMLAnchorElement>('.prof a[data-lk]')[Number(e.key) - 1];
+      if (a) { e.preventDefault(); a.click(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gone]);
+
   useTabTitle(profile.tabTitle || profile.displayName || `@${user.username}`, profile.tabAnim);
   useFavicon(profile.avatar);
 
@@ -79,10 +122,11 @@ export function PublicProfile({ profile, links, user, host, brand, viewToken, li
   return (
     <main className="prof-page">
       <FxStage effect={profile.background} cursor={profile.cursor} accent={profile.accent} tilt={profile.tilt} media={profile.media} cursorImage={profile.cursorImage}>
-        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} likes={likes} viewToken={viewToken} />
+        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} likes={likes} viewToken={viewToken} level={level} social={social} liveNow={liveNow} />
         <div className="prof-foot"><a href="/">{brand}</a></div>
       </FxStage>
       <ReportButton username={user.username} />
+      {secret && <SecretOverlay message={profile.secret.message} accent={profile.accent} onClose={closeSecret} />}
       {!warned && <ContentWarning text={profile.contentWarning.text} onAccept={() => setWarned(true)} />}
       {warned && !gone && (
         <button type="button" className={`enter${entered ? ' gone' : ''}`} onClick={enter} autoFocus>

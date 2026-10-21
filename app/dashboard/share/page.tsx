@@ -1,6 +1,7 @@
 import QRCode from 'qrcode';
 import { requireUser } from '@/lib/auth';
 import { SITE_HOST, SITE_URL } from '@/lib/config';
+import { CodeLine } from './CodeLine';
 import { CopyShare } from '../CopyShare';
 
 export const metadata = { title: 'Teilen' };
@@ -40,6 +41,18 @@ export default async function SharePage() {
             </tbody>
           </table>
         </div>
+      </section>
+      <section className="card card-pad stack">
+        <span className="label">Für GitHub und Websites</span>
+        <p className="hint" style={{ margin: 0 }}>Ein Zähler-Badge mit deinen echten Profilaufrufen, z. B. für dein GitHub-Profil-README. Mit <span className="mono">?show=likes</span> zeigt er Likes, mit <span className="mono">&amp;style=pill</span> runde Ecken.</p>
+        <div className="row" style={{ gap: 10 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/${user.username}/badge.svg`} alt="Profilaufrufe" height={20} />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/${user.username}/badge.svg?show=likes&style=pill`} alt="Likes" height={20} />
+        </div>
+        <CodeLine label="Markdown (README)" code={`[![Profilaufrufe](${url}/badge.svg)](${url})`} />
+        <CodeLine label="Profilkarte einbetten (HTML)" code={`<iframe src="${SITE_URL}/embed/${user.username}" width="420" height="640" style="border:0;border-radius:24px" loading="lazy"></iframe>`} />
       </section>
     </>
   );

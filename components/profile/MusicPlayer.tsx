@@ -12,6 +12,13 @@ import { clock } from './DiscordPresence';
 type Controller = { play: () => void };
 export const musicBus: { current: Controller | null } = { current: null };
 
+/** Whether the profile song is playing right now; the visualizer listens to it. */
+export const musicState = {
+  playing: false,
+  subs: new Set<(v: boolean) => void>(),
+  set(v: boolean) { if (v !== this.playing) { this.playing = v; this.subs.forEach(f => f(v)); } },
+};
+
 export function parseLrc(txt: string) {
   const out: { t: number; text: string }[] = [];
   for (const line of txt.split(/\r?\n/)) {
@@ -73,6 +80,8 @@ function PlayerCard({ music, art, playing, time, duration, onToggle, onSeek, sou
   onToggle: () => void; onSeek: (s: number) => void; sourceIcon?: string;
 }) {
   const lyric = useLyrics(music.lyrics, time);
+  useEffect(() => { musicState.set(playing); }, [playing]);
+  useEffect(() => () => musicState.set(false), []);
   return (
     <>
       <div className={`pmusic${playing ? ' playing' : ''}`}>
@@ -157,7 +166,14 @@ function SoundCloudEmbed({ music }: { music: Profile['music'] }) {
   const frame = useRef<HTMLIFrameElement>(null);
   useEffect(() => {
     let widget: SCWidget | null = null;
-    loadSoundCloud().then(() => { if (frame.current && window.SC) widget = window.SC.Widget(frame.current); });
+    loadSoundCloud().then(() => {
+      if (!frame.current || !window.SC) return;
+      widget = window.SC.Widget(frame.current);
+      const E = window.SC.Widget.Events;
+      widget.bind(E.PLAY, () => musicState.set(true));
+      widget.bind(E.PAUSE, () => musicState.set(false));
+      widget.bind(E.FINISH, () => musicState.set(false));
+    });
     musicBus.current = { play: () => widget?.play() };
     return () => { musicBus.current = null; };
   }, [music.mediaId]);

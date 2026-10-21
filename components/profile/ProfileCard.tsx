@@ -8,6 +8,9 @@ import { platformByKey } from '@/lib/platforms';
 import { accent2, initials, inkFor, rarity, type Profile } from '@/lib/profile';
 import { DiscordPresence } from './DiscordPresence';
 import { Countdown, LikeButton, LocalClock, TextCard } from './Extras';
+import { GateDialog } from './Gate';
+import { useVisualizer } from './Visualizer';
+import { FriendsRow, Guestbook, type SocialEntry, type SocialFriend } from './Social';
 import { MusicPlayer } from './MusicPlayer';
 import { Badges, Connections, iconColor, LiveBanner, useTwitchLive } from './ProfileParts';
 import { discordAvatar, useLanyard } from './useLanyard';
@@ -28,6 +31,11 @@ type Props = {
   /** Like count from the server and the signed view token the like request needs. */
   likes?: number;
   viewToken?: string;
+  /** Level and unlocked achievement count, computed on the server. */
+  level?: { level: number; pct: number; count: number; total: number } | null;
+  social?: { friends: SocialFriend[]; guestbook: SocialEntry[] };
+  /** Real visitors in the last minutes, when the profile shows it. */
+  liveNow?: number | null;
 };
 
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*<>/';
@@ -78,7 +86,16 @@ function useTypewriter(lines: string[], active: boolean) {
   return text;
 }
 
-export function ProfileCard({ profile: p, links, user, host, preview = false, audio, likes = 0, viewToken }: Props) {
+export function ProfileCard({ profile: p, links, user, host, preview = false, audio, likes = 0, viewToken, level, social, liveNow }: Props) {
+  const cardRef = useRef<HTMLElement>(null);
+  useVisualizer(cardRef, audio, p.visualizer && !!p.music.source);
+  const taps = useRef<number[]>([]);
+  const tapAvatar = () => {
+    if (!p.secret.on || p.secret.trigger === 'konami') return;
+    const now = Date.now();
+    taps.current = [...taps.current.filter(t => now - t < 2500), now];
+    if (taps.current.length >= 5) { taps.current = []; window.dispatchEvent(new Event('pulse-secret')); }
+  };
   const name = p.displayName || user.username;
   const { shown, replay } = useDecrypt(name, p.nameFx === 'decrypt');
   const r = rarity(user.username);
@@ -93,8 +110,18 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   const showPresence = !!presence && p.discord.showCard;
 
   const style = { '--pa': p.accent, '--pa2': accent2(p.accent), '--pa-ink': inkFor(p.accent), '--glow': p.glow / 100 } as CSSProperties;
+  const [gated, setGated] = useState<PublicLink | null>(null);
+  useEffect(() => {
+    // Back from a locked redirect (/r/… without the right password or like): reopen the dialog.
+    const id = new URLSearchParams(window.location.search).get('locked');
+    const l = id && links.find(x => x.id === id && x.gate && x.gate !== 'none');
+    if (l) setGated(l);
+  }, [links]);
   const href = (l: PublicLink) => (preview ? '#' : `/r/${l.id}`);
   const onLink = (e: React.MouseEvent) => { if (preview) e.preventDefault(); };
+  const linkProps = (l: PublicLink) => (l.gate && l.gate !== 'none'
+    ? { href: '#', onClick: (e: React.MouseEvent) => { e.preventDefault(); if (!preview) setGated(l); } }
+    : { href: href(l), onClick: onLink, target: preview ? undefined : '_blank', rel: 'noopener noreferrer' });
   const W = p.widgets;
   const pinned = links.filter(l => l.pinned), rest = links.filter(l => !l.pinned && l.kind !== 'header');
 
@@ -102,24 +129,25 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
     if (l.kind === 'header') return <h2 key={l.id} className="plhead">{l.title}</h2>;
     const plat = l.icon ? platformByKey(l.icon) : platformFor(l.url);
     return (
-      <a key={l.id} className={`plink${l.pinned ? ' pinned' : ''}${l.effect && l.effect !== 'none' ? ` lfx-${l.effect}` : ''}`} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer">
+      <a key={l.id} className={`plink${l.pinned ? ' pinned' : ''}${l.effect && l.effect !== 'none' ? ` lfx-${l.effect}` : ''}`} {...linkProps(l)} data-lk="1">
         <BrandIcon platform={l.icon || undefined} url={l.url} className="pli" style={l.pinned ? undefined : iconColor(p, plat.color)} />
         <span className="plt">{l.title || l.url}</span>
-        <Icon name="arrow" className="pla" />
+        <Icon name={l.gate && l.gate !== 'none' ? 'lock' : 'arrow'} className="pla" />
       </a>
     );
   };
 
   return (
-    <article className={`prof look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}${p.banner ? ' has-banner' : ''}`} style={style}>
+    <article ref={cardRef} className={`prof${p.visualizer && p.music.source ? ' viz' : ''} look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}${p.banner ? ' has-banner' : ''}`} style={style}>
       {p.banner && <div className="pbanner"><img src={p.banner} alt="" /></div>}
-      <div className="pav">
+      <div className="pav" onClick={tapAvatar}>
         <div className="pav-in">{avatar ? <img src={avatar} alt="" /> : <span>{initials(name)}</span>}</div>
         <span className={`pdot s-${status}`} title={STATUS_LABEL[status]} />
       </div>
       <div className="pid">
         <h1 className="pname" data-text={name} onPointerEnter={p.nameFx === 'decrypt' ? replay : undefined}>{shown}</h1>
-        <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span>{p.pronouns && <span className="ppron">{p.pronouns}</span>}</div>
+        <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span>{p.pronouns && <span className="ppron">{p.pronouns}</span>}
+          {p.showLevel && level && <span className="plevel" title={`${level.count} von ${level.total} Erfolgen · ${Math.round(level.pct)} % bis Level ${level.level + 1}`} style={{ '--lv': `${level.pct}%` } as CSSProperties}>Lvl {level.level}</span>}</div>
       </div>
       <Badges p={p} />
       {typing ? <p className="pbio ptype" aria-label={p.bioLines.join(' · ')}><span aria-hidden>{typed}</span><i className="caret" aria-hidden /></p> : p.bio && <p className="pbio">{p.bio}</p>}
@@ -180,6 +208,8 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
         </div>
       )}
 
+      {p.showFriends && social && social.friends.length > 0 && <FriendsRow friends={social.friends} preview={preview} />}
+
       <Connections p={p} preview={preview} twitchLive={!!live} />
 
       {links.length === 0 ? (p.connections.length ? null : <div className="pempty">Noch keine Links</div>) : p.socialRow ? (
@@ -187,7 +217,7 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
           {rest.length > 0 && (
             <div className="psocial">
               {rest.map(l => (
-                <a key={l.id} className={l.effect && l.effect !== 'none' ? `lfx-${l.effect}` : undefined} href={href(l)} onClick={onLink} target={preview ? undefined : '_blank'} rel="noopener noreferrer" aria-label={l.title} title={l.title}>
+                <a key={l.id} className={l.effect && l.effect !== 'none' ? `lfx-${l.effect}` : undefined} {...linkProps(l)} aria-label={l.title} title={l.title}>
                   <BrandIcon platform={l.icon || undefined} url={l.url} style={iconColor(p, (l.icon ? platformByKey(l.icon) : platformFor(l.url)).color)} />
                 </a>
               ))}
@@ -199,9 +229,13 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
         <nav className="plinks" aria-label="Links">{links.map(rowLink)}</nav>
       )}
 
+      {p.guestbook.on && <Guestbook username={user.username} entries={social?.guestbook ?? []} preview={preview} />}
+
+      {gated && <GateDialog link={gated} onClose={() => setGated(null)} />}
       <div className="pfoot">
         <span className="pfoot-l">
           {p.showViews && <span><Icon name="eye" />{user.views.toLocaleString('de-DE')}</span>}
+          {p.showLive && liveNow != null && liveNow > 0 && <span className="pnow" title="Echte Besucher in den letzten 5 Minuten"><i />{liveNow} hier</span>}
           {p.showLikes && <LikeButton username={user.username} token={viewToken} initial={likes} preview={preview} />}
         </span>
         <span>{host}/{user.username}</span>

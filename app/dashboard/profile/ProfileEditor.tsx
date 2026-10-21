@@ -324,7 +324,20 @@ function PageTab({ draft, set }: TabProps) {
         <label className="switch" htmlFor="likes"><span>Likes erlauben<small>Herz unten auf der Karte. Jede Person kann einmal liken, Bots werden nicht gezählt.</small></span><input type="checkbox" id="likes" checked={draft.showLikes} onChange={e => set('showLikes', e.target.checked)} /></label>
         <label className="switch" htmlFor="disc"><span>In „Entdecken“ zeigen<small>Dein Profil erscheint auf der öffentlichen Entdecken-Seite und in der Rangliste.</small></span><input type="checkbox" id="disc" checked={draft.discoverable} onChange={e => set('discoverable', e.target.checked)} /></label>
       </Section>
-      <Section n="06" title="Inhaltswarnung" text="Besucher bestätigen erst einen Hinweis, bevor dein Profil erscheint, z. B. bei 18+-Inhalten oder Blitzlicht-Effekten.">
+      <Section n="06" title="Extras" text="Kleine Dinge, die dein Profil lebendig machen.">
+        <label className="switch" htmlFor="viz"><span>Visualizer<small>Avatar-Ring und Player pulsieren im Takt deines Profilsongs. Bei hochgeladenen Audiodateien echt zur Musik, bei YouTube und Co. gleichmäßig.</small></span><input type="checkbox" id="viz" checked={draft.visualizer} onChange={e => set('visualizer', e.target.checked)} /></label>
+        <label className="switch" htmlFor="lvl"><span>Level zeigen<small>Dein Level aus den Erfolgen neben der UID.</small></span><input type="checkbox" id="lvl" checked={draft.showLevel} onChange={e => set('showLevel', e.target.checked)} /></label>
+        <label className="switch" htmlFor="live"><span>„Gerade hier“ zeigen<small>Wie viele echte Besucher in den letzten 5 Minuten auf deiner Seite waren.</small></span><input type="checkbox" id="live" checked={draft.showLive} onChange={e => set('showLive', e.target.checked)} /></label>
+        <label className="switch" htmlFor="egg"><span>Easter Egg<small>Eine geheime Nachricht mit Konfetti. Wer den Konami-Code tippt (↑ ↑ ↓ ↓ ← → ← → B A) oder fünfmal schnell auf deinen Avatar tippt, findet sie.</small></span><input type="checkbox" id="egg" checked={draft.secret.on} onChange={e => set('secret', { ...draft.secret, on: e.target.checked })} /></label>
+        {draft.secret.on && <>
+          <label className="field" htmlFor="egg-msg"><span className="field-row"><span>Geheime Nachricht</span><span className="hint mono">{draft.secret.message.length}/200</span></span>
+            <textarea className="in" id="egg-msg" rows={2} maxLength={200} value={draft.secret.message} onChange={e => set('secret', { ...draft.secret, message: e.target.value })} placeholder="z. B. Code GEHEIM10 gibt 10 % in meinem Shop" />
+          </label>
+          <div className="field">Auslöser<Chips name="egg-t" items={[['both', 'Beides'], ['konami', 'Nur Konami-Code'], ['avatar', 'Nur Avatar']] as const} value={draft.secret.trigger} onChange={v => set('secret', { ...draft.secret, trigger: v })} /></div>
+        </>}
+        <p className="hint">Besucher können außerdem mit den Tasten 1 bis 9 deine Links öffnen.</p>
+      </Section>
+      <Section n="07" title="Inhaltswarnung" text="Besucher bestätigen erst einen Hinweis, bevor dein Profil erscheint, z. B. bei 18+-Inhalten oder Blitzlicht-Effekten.">
         <label className="switch" htmlFor="cw-on"><span>Warnung vor dem Profil zeigen</span><input type="checkbox" id="cw-on" checked={draft.contentWarning.on} onChange={e => set('contentWarning', { ...draft.contentWarning, on: e.target.checked })} /></label>
         {draft.contentWarning.on && (
           <label className="field" htmlFor="cw-text">Text <span className="hint" style={{ marginTop: -4 }}>leer = Standardtext</span>

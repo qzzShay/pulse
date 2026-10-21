@@ -13,6 +13,7 @@ export const NAV = [
   { section: 'Main', items: [
     { href: '/dashboard', label: 'Übersicht', icon: 'overview' },
     { href: '/dashboard/analytics', label: 'Statistik', icon: 'analytics' },
+    { href: '/dashboard/achievements', label: 'Erfolge', icon: 'trophy' },
   ] },
   { section: 'Gestalten', items: [
     { href: '/dashboard/profile', label: 'Profil', icon: 'brush', sub: true },
@@ -20,6 +21,9 @@ export const NAV = [
     { href: '/dashboard/connections', label: 'Verbindungen', icon: 'plug' },
     { href: '/dashboard/templates', label: 'Vorlagen', icon: 'template' },
     { href: '/dashboard/badges', label: 'Badges', icon: 'badge' },
+  ] },
+  { section: 'Community', items: [
+    { href: '/dashboard/community', label: 'Freunde & Gästebuch', icon: 'users' },
   ] },
   { section: 'Tools', items: [
     { href: '/dashboard/share', label: 'Teilen', icon: 'share' },
@@ -39,6 +43,8 @@ export const CRUMBS: Record<string, string> = {
   '/dashboard/admin': 'Admin',
   '/dashboard': 'Übersicht',
   '/dashboard/analytics': 'Statistik',
+  '/dashboard/achievements': 'Erfolge',
+  '/dashboard/community': 'Community',
   '/dashboard/profile': 'Profil',
   '/dashboard/links': 'Links',
   '/dashboard/connections': 'Verbindungen',
@@ -89,6 +95,11 @@ export const SEARCH_INDEX = [
   { label: 'Tab-Titel und Animation', href: '/dashboard/profile?tab=page', group: 'Seite' },
   { label: 'Überschriften zwischen Links', href: '/dashboard/links', group: 'Links' },
   { label: 'Link-Effekte (Pulsieren, Leuchten …)', href: '/dashboard/links', group: 'Links' },
+  { label: 'Freunde hinzufügen', href: '/dashboard/community', group: 'Community' },
+  { label: 'Gästebuch', href: '/dashboard/community?tab=guestbook', group: 'Community' },
+  { label: 'Erfolge und Level', href: '/dashboard/achievements', group: 'Erfolge' },
+  { label: 'Geheimlinks mit Passwort', href: '/dashboard/links', group: 'Links' },
+  { label: 'Easter Egg (geheime Nachricht)', href: '/dashboard/profile?tab=page', group: 'Seite' },
   { label: 'Statistik als CSV exportieren', href: '/dashboard/analytics', group: 'Statistik' },
   { label: 'Registrierung öffnen', href: '/dashboard/settings', group: 'Konto' },
 ];

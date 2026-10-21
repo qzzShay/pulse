@@ -6,27 +6,40 @@ import type { Profile } from '@/lib/profile';
 
 /* Smaller profile widgets: like button, countdown, local time, text card. */
 
+/** Shared like state, so a like-locked link knows when the visitor has liked. */
+export const likeStore = {
+  liked: false,
+  subs: new Set<(v: boolean) => void>(),
+  set(v: boolean) { this.liked = v; this.subs.forEach(f => f(v)); },
+  /** Set by the like button: performs a like from elsewhere (the unlock dialog). */
+  like: null as null | (() => Promise<boolean>),
+};
+
 export function LikeButton({ username, token, initial, preview }: { username: string; token?: string; initial: number; preview?: boolean }) {
   const [count, setCount] = useState(initial);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLikedState] = useState(false);
+  const setLiked = (v: boolean) => { setLikedState(v); likeStore.set(v); };
   const [busy, setBusy] = useState(false);
   const [pop, setPop] = useState(false);
   useEffect(() => {
     if (preview) return;
     fetch(`/api/like?u=${encodeURIComponent(username)}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => { if (j) { setCount(j.count); setLiked(j.liked); } }).catch(() => {});
   }, [username, preview]);
-  const toggle = async () => {
-    if (preview || busy) return;
-    const next = !liked;
+  const toggle = async (force?: boolean) => {
+    if (preview || busy) return false;
+    const next = force ?? !liked;
+    if (next === liked) return liked;
     setBusy(true); setLiked(next); setCount(c => c + (next ? 1 : -1));
     if (next) { setPop(true); setTimeout(() => setPop(false), 600); }
     const res = await fetch('/api/like', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username, token, like: next }) }).catch(() => null);
     const j = res?.ok ? await res.json().catch(() => null) : null;
     if (j) { setCount(j.count); setLiked(j.liked); } else { setLiked(!next); setCount(c => c + (next ? -1 : 1)); }
     setBusy(false);
+    return !!j?.liked;
   };
+  useEffect(() => { likeStore.like = () => toggle(true); return () => { likeStore.like = null; }; });
   return (
-    <button type="button" className={`plike${liked ? ' on' : ''}${pop ? ' pop' : ''}`} onClick={toggle} aria-pressed={liked} aria-label={liked ? 'Like entfernen' : 'Profil liken'}>
+    <button type="button" className={`plike${liked ? ' on' : ''}${pop ? ' pop' : ''}`} onClick={() => toggle()} aria-pressed={liked} aria-label={liked ? 'Like entfernen' : 'Profil liken'}>
       <Icon name="heart" fill={liked ? 'currentColor' : 'none'} />{count.toLocaleString('de-DE')}
     </button>
   );
@@ -99,6 +112,46 @@ export function ContentWarning({ text, onAccept }: { text: string; onAccept: () 
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => history.length > 1 ? history.back() : (location.href = '/')}>Zurück</button>
           <button type="button" className="btn btn-white btn-sm" onClick={onAccept} autoFocus>Trotzdem ansehen</button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** The hidden message, with a burst of confetti in the accent colours. */
+export function SecretOverlay({ message, accent, onClose }: { message: string; accent: string; onClose: () => void }) {
+  useEffect(() => {
+    const cv = document.createElement('canvas');
+    cv.className = 'confetti';
+    document.body.appendChild(cv);
+    const g = cv.getContext('2d')!, d = Math.min(devicePixelRatio || 1, 2);
+    cv.width = innerWidth * d; cv.height = innerHeight * d; g.scale(d, d);
+    const colors = [accent, '#ffffff', '#ffd36b', '#7cf3e4', '#ff8bd1'];
+    const parts = Array.from({ length: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 160 }, () => ({
+      x: innerWidth / 2, y: innerHeight * 0.45, vx: (Math.random() - 0.5) * 16, vy: -Math.random() * 15 - 4,
+      r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3, s: Math.random() * 7 + 4, c: colors[(Math.random() * colors.length) | 0],
+    }));
+    let raf = 0;
+    const tick = () => {
+      g.clearRect(0, 0, innerWidth, innerHeight);
+      let alive = 0;
+      for (const q of parts) {
+        q.vy += 0.35; q.vx *= 0.99; q.x += q.vx; q.y += q.vy; q.r += q.vr;
+        if (q.y < innerHeight + 20) alive++;
+        g.save(); g.translate(q.x, q.y); g.rotate(q.r); g.fillStyle = q.c; g.fillRect(-q.s / 2, -q.s / 4, q.s, q.s / 2); g.restore();
+      }
+      if (alive) raf = requestAnimationFrame(tick); else cv.remove();
+    };
+    raf = requestAnimationFrame(tick);
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    addEventListener('keydown', esc);
+    return () => { cancelAnimationFrame(raf); cv.remove(); removeEventListener('keydown', esc); };
+  }, [accent, onClose]);
+  return (
+    <div className="secret" role="dialog" aria-modal="true" aria-label="Geheime Nachricht" onClick={onClose}>
+      <div className="secret-box" onClick={e => e.stopPropagation()}>
+        <span className="secret-tag"><Icon name="sparkles" />Du hast das Geheimnis gefunden</span>
+        <p>{message}</p>
+        <button type="button" className="btn btn-white btn-sm" onClick={onClose}>Schließen</button>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { normalizeUrl } from '@/lib/links';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { usernameError } from '@/lib/profile';
 import {
-  AdminPage, AnalyticsPage, ExplorePage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
+  AchievementsPage, AdminPage, AnalyticsPage, CommunityPage, ExplorePage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
 } from './pages';
 import { nav, parseUrl, useUrl } from './router';
 import { getState, reset, update, useDemo } from './store';
@@ -21,6 +21,21 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (u.startsWith('/api/live/twitch')) return json({ live: false });
   if (u.startsWith('/api/stats/live')) return json({ live: 3 });
   if (u.startsWith('/api/report')) return json({ ok: true });
+  if (u.startsWith('/api/presence')) return json({ live: 3 });
+  if (u.startsWith('/api/pow')) return json({ salt: `${Date.now().toString(36)}.demo`, bits: 4, exp: Date.now() + 6e5, sig: 'demo' });
+  if (u.startsWith('/api/unlock')) {
+    const body = JSON.parse(String(init?.body || '{}'));
+    const link = getState().links.find(l => l.id === body.id);
+    if (link?.gate === 'password' && body.password !== 'nova') return json({ ok: false, error: 'Das Passwort stimmt nicht. (Vorschau: nova)' });
+    if (link?.gate === 'like' && !getState().liked) return json({ ok: false, error: 'Like zuerst das Profil.' });
+    return json({ ok: true });
+  }
+  if (u.startsWith('/api/guestbook')) {
+    const body = JSON.parse(String(init?.body || '{}'));
+    if (/https?:\/\/|www\./i.test(body.message)) return json({ error: 'Links sind im Gästebuch nicht erlaubt.' });
+    update(s => ({ guestbook: [{ id: Date.now(), author: body.author, message: body.message, status: 'pending', createdAt: Date.now() }, ...s.guestbook] }));
+    return json({ ok: true, approved: false });
+  }
   if (u.startsWith('/api/like')) {
     if (init?.method === 'POST') {
       const like = JSON.parse(String(init.body)).like === true;
@@ -49,13 +64,24 @@ uploader.send = async (file, accept) => {
   return { url, kind };
 };
 
+// Unlocked links (opened via window.open('/r/…')) go to the real address.
+const realOpen = window.open.bind(window);
+window.open = (target?: string | URL, ...rest: [string?, string?]) => {
+  const t = String(target ?? '');
+  if (t.startsWith('/r/')) {
+    const link = getState().links.find(l => l.id === t.slice(3).split('?')[0]);
+    if (link) { update(s => ({ clicks: { ...s.clicks, [link.id]: (s.clicks[link.id] ?? 0) + 1 } })); return realOpen(normalizeUrl(link.url), ...rest); }
+  }
+  return realOpen(target, ...rest);
+};
+
 // Internal links (/dashboard…, /<name>) navigate in-page; click redirects (/r/<id>) open the real address.
 document.addEventListener('click', e => {
   const a = (e.target as HTMLElement).closest?.('a');
   const href = a?.getAttribute('href');
   if (!a || !href || e.defaultPrevented) return;
   if (href.startsWith('/r/')) {
-    const link = getState().links.find(l => l.id === href.slice(3));
+    const link = getState().links.find(l => l.id === href.slice(3).split('?')[0]);
     if (!link) { e.preventDefault(); return; }
     update(s => ({ clicks: { ...s.clicks, [link.id]: (s.clicks[link.id] ?? 0) + 1 } }));
     a.setAttribute('href', normalizeUrl(link.url));
@@ -81,6 +107,8 @@ function Router() {
       : path === '/dashboard/share' ? <SharePage />
       : path === '/dashboard/settings' ? <SettingsPage />
       : path === '/dashboard/admin' ? <AdminPage params={params} />
+      : path === '/dashboard/achievements' ? <AchievementsPage />
+      : path === '/dashboard/community' ? <CommunityPage params={params} />
       : <OverviewPage />;
     return (
       <Shell brand={BRAND} announcement={announcement} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner: true, openReports: admin.reports.filter(r => r.status === 'open').length }}>

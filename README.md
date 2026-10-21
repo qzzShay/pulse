@@ -30,6 +30,13 @@ Link-in-Bio-Plattform für Creator, Gamer, Artists, Musiker:innen, Streamer und 
 - **Einladungen:** Ist die Registrierung geschlossen, kommen neue Leute mit Einladungscode rein (Admin → Einladungen, Link füllt den Code aus, jeder Code gilt einmal).
 - **Konto-Werkzeuge:** Look als Code teilen und übernehmen, alle Daten als JSON herunterladen, Konto selbst löschen, 7 Tage Sperre zwischen Namensänderungen.
 - **Owner-Werkzeuge:** Ankündigungs-Banner im Dashboard aller Nutzer, Discord-Webhook für neue Konten und Meldungen.
+- **Erfolge und Level:** 24 Erfolge (Bronze bis Legendär), die sich automatisch freischalten; XP aus Erfolgen, Aufrufen und Likes ergeben ein Level, das auf dem Profil steht.
+- **Smarte Links:** nur für Handy oder Computer sichtbar, Geheimlinks mit Passwort oder „erst liken, dann öffnen“. Die echte Adresse eines gesperrten Links kommt nie im Browser an.
+- **Community:** gegenseitige Freundschaften mit Avatar-Reihe auf dem Profil, Gästebuch mit Freigabe, Proof-of-Work und Link-Sperre gegen Spam.
+- **Profil-Effekte:** Audio-Visualizer (Avatar-Ring pulsiert zur Musik, bei eigenen Audiodateien per Web-Audio-Analyse), Easter Egg per Konami-Code oder fünf Avatar-Klicks mit Konfetti, „X hier“-Live-Zähler, Tasten 1–9 öffnen Links.
+- **Für Websites:** Aufrufzähler-Badge als SVG für GitHub-READMEs (`/<name>/badge.svg`), einbettbare Profilkarte (`/embed/<name>`).
+- **Profil-Verlauf:** die letzten 20 Versionen des Profils, mit einem Klick wiederherstellbar.
+- **App:** Das Dashboard lässt sich als App auf dem Handy installieren (Web-App-Manifest).
 - **Konten:** Das erste Konto wird Owner (Plan Legend, OG-Badge). Danach ist die Registrierung geschlossen, bis der Owner sie unter Einstellungen → Plattform öffnet.
 
 ## Technik

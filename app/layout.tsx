@@ -8,6 +8,8 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(SITE_URL),
     title: { default: BRAND, template: `%s · ${BRAND}` },
     description: 'Link-in-Bio-Seiten für Creator, Gamer und Artists.',
+    appleWebApp: { capable: true, title: BRAND, statusBarStyle: 'black-translucent' },
+    icons: { apple: '/pwa-icon/180' },
   };
 }
 

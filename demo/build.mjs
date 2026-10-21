@@ -19,6 +19,7 @@ const alias = {
       if (args.path === '@/app/login/actions') return { path: abs('demo/mocks/login-actions.ts') };
       if (args.path === '../actions' && args.importer.includes('/app/dashboard/')) return { path: abs('demo/mocks/actions.ts') };
       if (args.path === './actions' && args.importer.includes('/app/dashboard/admin/')) return { path: abs('demo/mocks/admin-actions.ts') };
+      if (args.path === './actions' && args.importer.includes('/app/dashboard/community/')) return { path: abs('demo/mocks/community-actions.ts') };
       return undefined;
     });
   },

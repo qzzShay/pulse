@@ -13,6 +13,7 @@ const wait = () => new Promise(r => setTimeout(r, 180));
 
 export async function saveProfileAction(data: unknown): Promise<Result> {
   await wait();
+  snapshot('Vor dem Speichern');
   const look = LOOKS.find(l => l.id === (data as { look?: string })?.look);
   if (look?.premium && getState().user.plan === 'free') return { ok: false, error: `${look.label} ist ein Premium-Look.` };
   const parsed = profileSchema.safeParse(data);
@@ -23,6 +24,7 @@ export async function saveProfileAction(data: unknown): Promise<Result> {
 
 export async function applyNicheAction(nicheId: string): Promise<Result> {
   await wait();
+  snapshot('Vor der Vorlage');
   update(s => ({ profile: applyNiche(s.profile, nicheId) }));
   return { ok: true, message: 'Vorlage übernommen' };
 }
@@ -56,7 +58,7 @@ export async function createLinkAction(input: LinkInput): Promise<Result> {
   await wait();
   const { url, title } = clean(input);
   if (!url) return { ok: false, error: 'Gib eine Adresse ein, z. B. https://youtube.com/@deinname' };
-  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title, url, pinned: false, hidden: false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, position: s.links.length, kind: 'link', effect: 'none', icon: '' }] }));
+  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title, url, pinned: false, hidden: false, startsAt: input.startsAt ?? null, endsAt: input.endsAt ?? null, position: s.links.length, kind: 'link', effect: 'none', icon: '', device: 'all', gate: 'none', hasSecret: false }] }));
   return { ok: true, message: 'Link hinzugefügt' };
 }
 
@@ -64,11 +66,11 @@ export async function createHeaderAction(title: string): Promise<Result> {
   await wait();
   const t = String(title || '').trim().slice(0, 60);
   if (!t) return { ok: false, error: 'Gib der Überschrift einen Text.' };
-  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title: t, url: '', pinned: false, hidden: false, startsAt: null, endsAt: null, position: s.links.length, kind: 'header', effect: 'none', icon: '' }] }));
+  update(s => ({ links: [...s.links, { id: Math.random().toString(36).slice(2, 10), title: t, url: '', pinned: false, hidden: false, startsAt: null, endsAt: null, position: s.links.length, kind: 'header', effect: 'none', icon: '', device: 'all', gate: 'none', hasSecret: false }] }));
   return { ok: true, message: 'Überschrift hinzugefügt' };
 }
 
-export async function updateLinkAction(id: string, patch: Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: EditableLink['effect']; icon: string }>): Promise<Result> {
+export async function updateLinkAction(id: string, patch: Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: EditableLink['effect']; icon: string; device: EditableLink['device']; gate: EditableLink['gate']; password: string }>): Promise<Result> {
   await wait();
   const link = getState().links.find(l => l.id === id);
   if (link?.kind === 'header') {
@@ -79,7 +81,8 @@ export async function updateLinkAction(id: string, patch: Partial<LinkInput & { 
   update(s => ({
     links: s.links.map(l => {
       if (l.id !== id) return patch.pinned ? { ...l, pinned: false } : l;
-      const next = { ...l, ...patch };
+      const { password, ...rest } = patch;
+      const next = { ...l, ...rest, ...(password ? { hasSecret: true } : {}) };
       if (patch.url !== undefined || patch.title !== undefined) Object.assign(next, clean({ url: next.url, title: patch.title ?? next.title }));
       return next;
     }),
@@ -133,8 +136,26 @@ export async function setSignupOpenAction(open: boolean): Promise<Result> {
 
 export async function applyLookAction(code: string): Promise<Result> {
   await wait();
+  snapshot('Vor dem Look-Code');
   const look = decodeLook(code);
   if (!look) return { ok: false, error: 'Dieser Code ist ungültig. Er beginnt mit PULSE1-.' };
   update(s => ({ profile: profileSchema.parse({ ...s.profile, ...look }) }));
   return { ok: true, message: 'Look übernommen' };
+}
+
+/** Mirrors lib/snapshots.ts: remembers the profile before each change (20 newest). */
+function snapshot(label: string) {
+  const s = getState();
+  const data = JSON.stringify(s.profile);
+  if (s.snapshots[0]?.data === data) return;
+  update(st => ({ snapshots: [{ id: Date.now(), label, createdAt: Date.now(), data }, ...st.snapshots].slice(0, 20) }));
+}
+
+export async function restoreSnapshotAction(id: number): Promise<Result> {
+  await wait();
+  const snap = getState().snapshots.find(x => x.id === id);
+  if (!snap) return { ok: false, error: 'Diese Version gibt es nicht mehr.' };
+  snapshot('Vor dem Wiederherstellen');
+  update(() => ({ profile: profileSchema.parse(JSON.parse(snap.data)) }));
+  return { ok: true, message: 'Version wiederhergestellt' };
 }

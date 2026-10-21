@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useToast } from '@/components/dashboard/Toast';
 import { BrandIcon } from '@/components/BrandIcon';
 import { Icon } from '@/components/icons';
-import { LINK_EFFECTS, linkState, platformFor, type EditableLink, type LinkState } from '@/lib/links';
+import { LINK_DEVICES, LINK_EFFECTS, LINK_GATES, linkState, platformFor, type EditableLink, type LinkState } from '@/lib/links';
 import { PLATFORMS, platformByKey } from '@/lib/platforms';
 import type { Profile } from '@/lib/profile';
 import {
@@ -195,7 +195,9 @@ export function LinksManager({ initial, clicks, series, totalClicks, profile, op
                   </button>
                   <PlatIcon url={l.url} icon={l.icon} />
                   <div className="lrow-main">
-                    <b>{l.title}{l.effect !== 'none' && <span className="pill pill-dim">{LINK_EFFECTS.find(x => x[0] === l.effect)?.[1]}</span>}{st !== 'live' && <span className={`pill ${pc}`}>{st === 'scheduled' && l.startsAt ? `Ab ${new Date(l.startsAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : pl}</span>}</b>
+                    <b>{l.title}{l.effect !== 'none' && <span className="pill pill-dim">{LINK_EFFECTS.find(x => x[0] === l.effect)?.[1]}</span>}
+                      {l.gate !== 'none' && <span className="pill pill-warn"><Icon name="lock" />{l.gate === 'password' ? 'Passwort' : 'Erst liken'}</span>}
+                      {l.device !== 'all' && <span className="pill pill-dim">{l.device === 'mobile' ? 'Nur Handy' : 'Nur PC'}</span>}{st !== 'live' && <span className={`pill ${pc}`}>{st === 'scheduled' && l.startsAt ? `Ab ${new Date(l.startsAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}` : pl}</span>}</b>
                     <span className="url">{l.url}</span>
                   </div>
                   <div className="lrow-side">
@@ -304,15 +306,19 @@ function ImportLinks({ onDone, run }: { onDone: () => void; run: (p: Promise<Res
   );
 }
 
-function EditLink({ link, onClose, onSave }: { link: EditableLink; onClose: () => void; onSave: (c: Partial<EditableLink>) => void }) {
+function EditLink({ link, onClose, onSave }: { link: EditableLink; onClose: () => void; onSave: (c: Partial<EditableLink> & { password?: string }) => void }) {
   const [title, setTitle] = useState(link.title);
   const [url, setUrl] = useState(link.url);
   const [startsAt, setStartsAt] = useState(toInput(link.startsAt));
   const [endsAt, setEndsAt] = useState(toInput(link.endsAt));
   const [effect, setEffect] = useState(link.effect);
   const [icon, setIcon] = useState(link.icon);
+  const [device, setDevice] = useState(link.device);
+  const [gate, setGate] = useState(link.gate);
+  const [password, setPassword] = useState('');
+  const needPw = gate === 'password' && !link.hasSecret && !password;
   return (
-    <form className="lrow-edit" onSubmit={e => { e.preventDefault(); onSave({ title, url, startsAt: fromInput(startsAt), endsAt: fromInput(endsAt), effect, icon }); }}>
+    <form className="lrow-edit" onSubmit={e => { e.preventDefault(); onSave({ title, url, startsAt: fromInput(startsAt), endsAt: fromInput(endsAt), effect, icon, device, gate, ...(password ? { password, hasSecret: true } : {}) }); }}>
       <div className="grid-2">
         <label className="field" htmlFor={`t-${link.id}`}>Titel<input className="in" id={`t-${link.id}`} value={title} onChange={e => setTitle(e.target.value)} maxLength={80} /></label>
         <label className="field" htmlFor={`u-${link.id}`}>Adresse<input className="in mono" id={`u-${link.id}`} value={url} onChange={e => setUrl(e.target.value)} autoCapitalize="off" spellCheck={false} /></label>
@@ -329,10 +335,26 @@ function EditLink({ link, onClose, onSave }: { link: EditableLink; onClose: () =
             {ICON_CHOICES.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
           </select>
         </label>
+        <label className="field" htmlFor={`dv-${link.id}`}>Sichtbar für
+          <select className="in" id={`dv-${link.id}`} value={device} onChange={e => setDevice(e.target.value as EditableLink['device'])}>
+            {LINK_DEVICES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </label>
+        <label className="field" htmlFor={`gt-${link.id}`}>Freischalten <span className="hint" style={{ marginTop: -4 }}>die echte Adresse bleibt bis dahin verborgen</span>
+          <select className="in" id={`gt-${link.id}`} value={gate} onChange={e => setGate(e.target.value as EditableLink['gate'])}>
+            {LINK_GATES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </label>
+        {gate === 'password' && (
+          <label className="field" htmlFor={`pw-${link.id}`}>Passwort <span className="hint" style={{ marginTop: -4 }}>{link.hasSecret ? 'leer = bisheriges behalten' : 'z. B. für Discord-Mitglieder'}</span>
+            <input className="in" id={`pw-${link.id}`} value={password} onChange={e => setPassword(e.target.value)} maxLength={100} autoComplete="off" />
+          </label>
+        )}
       </div>
+      {needPw && <p className="err">Gib ein Passwort ein.</p>}
       <div className="row" style={{ justifyContent: 'flex-end' }}>
         <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Abbrechen</button>
-        <button type="submit" className="btn btn-white btn-sm">Speichern</button>
+        <button type="submit" className="btn btn-white btn-sm" disabled={needPw}>Speichern</button>
       </div>
     </form>
   );

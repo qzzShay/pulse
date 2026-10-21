@@ -10,7 +10,7 @@ import type { Announcement } from '@/lib/announcement';
 import { ADMIN_NAV, CRUMBS, NAV, PROFILE_TABS, SEARCH_INDEX } from './nav';
 import { ToastProvider } from './Toast';
 
-type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string; owner?: boolean; openReports?: number }; brand: string; announcement?: Announcement | null };
+type Props = { children: ReactNode; user: { username: string; plan: string; avatar: string | null; display: string; owner?: boolean; openReports?: number; counts?: Record<string, number> }; brand: string; announcement?: Announcement | null };
 
 export function Shell(props: Props) {
   return (
@@ -86,7 +86,7 @@ function ShellInner({ children, user, brand, announcement }: Props) {
               return (
                 <Link key={item.href} href={item.href} className="nav-item" aria-current={path === item.href ? 'page' : undefined}>
                   <Icon name={item.icon} />{item.label}
-                  {item.href === '/dashboard/admin' && !!user.openReports && <span className="nav-count">{user.openReports}</span>}
+                  {!!(item.href === '/dashboard/admin' ? user.openReports : user.counts?.[item.href]) && <span className="nav-count">{item.href === '/dashboard/admin' ? user.openReports : user.counts?.[item.href]}</span>}
                 </Link>
               );
             })}

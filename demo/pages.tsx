@@ -10,6 +10,9 @@ import { LinksManager } from '@/app/dashboard/links/LinksManager';
 import { ProfileEditor } from '@/app/dashboard/profile/ProfileEditor';
 import { SettingsForms } from '@/app/dashboard/settings/SettingsForms';
 import { AdminPanel } from '@/app/dashboard/admin/AdminPanel';
+import { AchievementsView } from '@/app/dashboard/achievements/AchievementsView';
+import { Community } from '@/app/dashboard/community/Community';
+import { progress } from '@/lib/achievements';
 import { Templates } from '@/app/dashboard/templates/Templates';
 import { PROFILE_TABS, type ProfileTab } from '@/components/dashboard/nav';
 import { Icon, Logo } from '@/components/icons';
@@ -30,7 +33,7 @@ const PLAN_LABEL = { free: 'Free', pro: 'Pro', legend: 'Legend' } as const;
 export function publicLinks(all: EditableLink[]) {
   const live = all.filter(l => linkState(l) === 'live');
   return [...live.filter(l => l.pinned && l.kind === 'link'), ...live.filter(l => !l.pinned || l.kind === 'header')]
-    .map(({ id, title, url, pinned, kind, effect, icon }) => ({ id, title, url, pinned: pinned && kind === 'link', kind, effect, icon }));
+    .map(({ id, title, url, pinned, kind, effect, icon, device, gate }) => ({ id, title, url: gate === 'none' ? url : new URL(url).origin, pinned: pinned && kind === 'link', kind, effect, icon, device, gate }));
 }
 
 export function OverviewPage() {
@@ -231,8 +234,25 @@ export function ConnectionsPage() {
 }
 
 export function TemplatesPage() {
-  const { profile } = useDemo();
-  return <Templates current={profile.niche} lookCode={encodeLook(profile)} />;
+  const { profile, snapshots } = useDemo();
+  return <Templates current={profile.niche} lookCode={encodeLook(profile)} history={snapshots} />;
+}
+
+export function AchievementsPage() {
+  const { profile, links, likes, friends, guestbook, aliases, totp, user } = useDemo();
+  const stats = {
+    views: 1840, likes, links: links.filter(l => l.kind !== 'header').length, connections: profile.connections.length, uploads: 0,
+    days: Math.floor((Date.now() - user.createdAt) / 864e5), twoFactor: totp, friends: friends.length,
+    guestbook: guestbook.filter(g => g.status === 'approved').length, aliases: aliases.length, discord: !!profile.discord.userId,
+    music: !!profile.music.source, customBadges: profile.customBadges.length, banner: !!profile.banner, uid: user.id,
+    widgets: Object.values(profile.widgets).filter(w => w.on).length, secret: profile.secret.on,
+  };
+  return <AchievementsView prog={progress(stats)} />;
+}
+
+export function CommunityPage({ params }: { params: URLSearchParams }) {
+  const { friends, guestbook, profile } = useDemo();
+  return <Community tab={params.get('tab') === 'guestbook' ? 'guestbook' : 'friends'} friends={friends} requests={{ incoming: [{ id: 91, username: 'lena', name: 'Lena', accent: '#6be29a', avatar: false }], outgoing: [] }} entries={guestbook} profile={profile} />;
 }
 
 export function BadgesPage() {
@@ -336,7 +356,11 @@ export function ExplorePage() {
 export function PublicPage() {
   const { user, profile, links, clicks } = useDemo();
   const views = demoReport(7, links, clicks).allTimeViews;
-  return <PublicProfile profile={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} host={SITE_HOST} brand={BRAND} likes={useDemo().likes} />;
+  const { likes, friends, guestbook } = useDemo();
+  return (
+    <PublicProfile profile={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} host={SITE_HOST} brand={BRAND} likes={likes}
+      level={{ level: 9, pct: 62, count: 11, total: 24 }} social={{ friends, guestbook: guestbook.filter(g => g.status === 'approved') }} />
+  );
 }
 
 export function LandingPage() {

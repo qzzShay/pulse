@@ -10,9 +10,11 @@ import { getProfile, saveProfile, setSetting } from '@/lib/data';
 import { db, ready, schema } from '@/lib/db';
 import { LINK_EFFECTS, normalizeUrl } from '@/lib/links';
 import { PLATFORMS } from '@/lib/platforms';
+import { hashLinkSecret } from '@/lib/linkgate';
+import { getSnapshot, snapshotProfile } from '@/lib/snapshots';
 import { detectMusic } from '@/lib/music';
 import { resolveMusic, type MusicMeta } from '@/lib/oembed';
-import { applyNiche, BADGES, decodeLook, LOOKS, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
+import { applyNiche, BADGES, decodeLook, LOOKS, parseProfile, profileSchema, RESTRICTED_BADGES, usernameError, type Profile } from '@/lib/profile';
 import type { User } from '@/lib/db/schema';
 
 export type Result = { ok: true; message?: string } | { ok: false; error: string };
@@ -66,6 +68,7 @@ export async function saveProfileAction(data: unknown): Promise<Result> {
   const look = LOOKS.find(l => l.id === parsed.data.look);
   if (look?.premium && user.plan === 'free') return { ok: false, error: `${look.label} ist ein Premium-Look.` };
   const p = cleanMedia(normalizeMusic({ ...parsed.data, badges: allowedBadges(user, parsed.data.badges) }));
+  await snapshotProfile(user.id, 'Vor dem Speichern');
   await saveProfile(user.id, p);
   refresh();
   revalidatePath(`/${user.username}`);
@@ -76,6 +79,7 @@ export async function applyNicheAction(nicheId: string): Promise<Result> {
   const user = await requireUser();
   const current = await getProfile(user.id);
   const next = applyNiche(current, nicheId);
+  await snapshotProfile(user.id, 'Vor der Vorlage', true);
   await saveProfile(user.id, { ...next, badges: allowedBadges(user, next.badges) });
   refresh();
   revalidatePath(`/${user.username}`);
@@ -90,10 +94,26 @@ export async function applyLookAction(code: string): Promise<Result> {
   const card = LOOKS.find(l => l.id === look.look);
   if (card?.premium && user.plan === 'free') return { ok: false, error: `Der Code nutzt den Premium-Look ${card.label}.` };
   const current = await getProfile(user.id);
+  await snapshotProfile(user.id, 'Vor dem Look-Code', true);
   await saveProfile(user.id, { ...current, ...look });
   refresh();
   revalidatePath(`/${user.username}`);
   return { ok: true, message: 'Look übernommen' };
+}
+
+/** Brings back an earlier version. The current one is saved first, so a restore can be undone too. */
+export async function restoreSnapshotAction(id: number): Promise<Result> {
+  const user = await requireUser();
+  const snap = await getSnapshot(user.id, Number(id));
+  if (!snap) return { ok: false, error: 'Diese Version gibt es nicht mehr.' };
+  const p = parseProfile(snap.data);
+  const look = LOOKS.find(l => l.id === p.look);
+  const safe = { ...p, look: look?.premium && user.plan === 'free' ? 'frost' : p.look };
+  await snapshotProfile(user.id, 'Vor dem Wiederherstellen', true);
+  await saveProfile(user.id, cleanMedia(normalizeMusic({ ...safe, badges: allowedBadges(user, safe.badges) })));
+  refresh();
+  revalidatePath(`/${user.username}`);
+  return { ok: true, message: `Version vom ${new Date(snap.createdAt).toLocaleString('de-DE')} wiederhergestellt` };
 }
 
 export async function saveBadgesAction(input: Pick<Profile, 'badges' | 'badgeStyle' | 'customBadges'>): Promise<Result> {
@@ -148,7 +168,7 @@ export async function createHeaderAction(title: string): Promise<Result> {
   return { ok: true, message: 'Überschrift hinzugefügt' };
 }
 
-type LinkPatch = Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: string; icon: string }>;
+type LinkPatch = Partial<LinkInput & { pinned: boolean; hidden: boolean; effect: string; icon: string; device: string; gate: string; password: string }>;
 
 export async function updateLinkAction(id: string, patch: LinkPatch): Promise<Result> {
   const user = await requireUser();
@@ -166,6 +186,17 @@ export async function updateLinkAction(id: string, patch: LinkPatch): Promise<Re
   }
   if (patch.effect !== undefined) set.effect = LINK_EFFECTS.some(e => e[0] === patch.effect) ? patch.effect : 'none';
   if (patch.icon !== undefined) set.icon = PLATFORMS.some(p => p.key === patch.icon) ? patch.icon : '';
+  if (patch.device !== undefined) set.device = ['mobile', 'desktop'].includes(patch.device) ? patch.device : 'all';
+  if (patch.gate !== undefined) {
+    const gate = ['password', 'like'].includes(patch.gate) ? patch.gate : 'none';
+    set.gate = gate;
+    if (gate !== 'password') set.gateSecret = '';
+    else if (patch.password) set.gateSecret = hashLinkSecret(id, String(patch.password).slice(0, 100));
+    else {
+      const [cur] = await db.select({ s: links.gateSecret }).from(links).where(eq(links.id, id)).limit(1);
+      if (!cur?.s) return { ok: false, error: 'Gib ein Passwort für den Link ein.' };
+    }
+  }
   if (patch.url !== undefined || patch.title !== undefined) {
     const { url, title } = cleanLink({ url: patch.url ?? '', title: patch.title ?? '' });
     if (patch.url !== undefined) { if (!url) return { ok: false, error: 'Die Adresse darf nicht leer sein.' }; set.url = url; }

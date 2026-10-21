@@ -8,9 +8,21 @@ export type LinkKind = 'link' | 'header';
 export const LINK_EFFECTS = [['none', 'Keine'], ['pulse', 'Pulsieren'], ['shake', 'Wackeln'], ['glow', 'Leuchten'], ['shine', 'Glanz']] as const;
 export type LinkEffect = (typeof LINK_EFFECTS)[number][0];
 
-export type PublicLink = { id: string; title: string; url: string; pinned: boolean; kind?: LinkKind; effect?: LinkEffect; icon?: string };
+export const LINK_DEVICES = [['all', 'Alle Geräte'], ['mobile', 'Nur Handy & Tablet'], ['desktop', 'Nur Computer']] as const;
+export type LinkDevice = (typeof LINK_DEVICES)[number][0];
+export const LINK_GATES = [['none', 'Offen'], ['password', 'Mit Passwort'], ['like', 'Erst liken']] as const;
+export type LinkGate = (typeof LINK_GATES)[number][0];
+
+export type PublicLink = {
+  id: string; title: string; url: string; pinned: boolean;
+  kind?: LinkKind; effect?: LinkEffect; icon?: string; device?: LinkDevice;
+  /** Locked links only carry the site's origin, never the full address. */
+  gate?: LinkGate;
+};
 
 export type EditableLink = Required<PublicLink> & {
+  /** A password is set (the password itself never leaves the server). */
+  hasSecret: boolean;
   hidden: boolean;
   startsAt: number | null;
   endsAt: number | null;
