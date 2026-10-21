@@ -5,10 +5,11 @@ import { normalizeUrl } from '@/lib/links';
 import { RESERVED_USERNAMES } from '@/lib/config';
 import { usernameError } from '@/lib/profile';
 import {
-  AchievementsPage, AdminPage, AnalyticsPage, CommunityPage, ExplorePage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
+  AchievementsPage, AdminPage, AnalyticsPage, CommunityPage, ExplorePage, StoriesPage, BadgesPage, BRAND, ConnectionsPage, LandingPage, LinksPage, OverviewPage, ProfilePage, PublicPage, SettingsPage, SharePage, TemplatesPage,
 } from './pages';
 import { nav, parseUrl, useUrl } from './router';
-import { getState, reset, update, useDemo } from './store';
+import { demoMusic, getState, reset, update, useDemo } from './store';
+import { demoBeatUrl } from './beat';
 
 /* Artifact preview entry: real client components + demo store instead of the server. */
 
@@ -22,6 +23,18 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   if (u.startsWith('/api/stats/live')) return json({ live: 3 });
   if (u.startsWith('/api/report')) return json({ ok: true });
   if (u.startsWith('/api/presence')) return json({ live: 3 });
+  if (u.startsWith('/api/ask')) {
+    const body = JSON.parse(String(init?.body || '{}'));
+    update(s => ({ questions: [{ id: Date.now(), question: String(body.question).slice(0, 300), answer: '', public: false, createdAt: Date.now(), answeredAt: null }, ...s.questions] }));
+    return json({ ok: true });
+  }
+  if (u.startsWith('/api/poll')) {
+    if (init?.method === 'POST') {
+      const { option } = JSON.parse(String(init.body));
+      if (getState().myVote === null) update(s => ({ myVote: option, votes: s.votes.map((v, i) => (i === option ? v + 1 : v)) }));
+    }
+    return json({ id: 'demo', counts: getState().votes, mine: getState().myVote });
+  }
   if (u.startsWith('/api/pow')) return json({ salt: `${Date.now().toString(36)}.demo`, bits: 4, exp: Date.now() + 6e5, sig: 'demo' });
   if (u.startsWith('/api/unlock')) {
     const body = JSON.parse(String(init?.body || '{}'));
@@ -63,6 +76,15 @@ uploader.send = async (file, accept) => {
   update(s => ({ files: [{ id: file.name.slice(0, 40), kind, size: file.size, createdAt: Date.now(), url }, ...s.files] }));
   return { url, kind };
 };
+
+// A generated drum loop as profile song, so the visualizer has real audio to analyse.
+{
+  const m = getState().profile.music;
+  const url = (demoMusic.url = demoBeatUrl());
+  if (!m.source || m.url.startsWith('blob:')) {
+    update(s => ({ profile: { ...s.profile, music: { ...s.profile.music, source: 'file', url, mediaId: url, title: 'Demo-Beat', artist: 'Pulse', cover: '' } } }));
+  }
+}
 
 // Unlocked links (opened via window.open('/r/…')) go to the real address.
 const realOpen = window.open.bind(window);
@@ -109,6 +131,7 @@ function Router() {
       : path === '/dashboard/admin' ? <AdminPage params={params} />
       : path === '/dashboard/achievements' ? <AchievementsPage />
       : path === '/dashboard/community' ? <CommunityPage params={params} />
+      : path === '/dashboard/stories' ? <StoriesPage />
       : <OverviewPage />;
     return (
       <Shell brand={BRAND} announcement={announcement} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner: true, openReports: admin.reports.filter(r => r.status === 'open').length }}>

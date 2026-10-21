@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/auth';
 import { getUserByUsername } from '@/lib/data';
 import { limited } from '@/lib/ratelimit';
 import { acceptFriend, removeFriend, requestFriend, setGuestStatus } from '@/lib/social';
+import { answerQuestion, deleteQuestion } from '@/lib/engage';
 import type { Result } from '../actions';
 
 const done = (message: string): Result => { revalidatePath('/dashboard', 'layout'); return { ok: true, message }; };
@@ -37,4 +38,19 @@ export async function moderateEntryAction(id: number, approve: boolean): Promise
   await setGuestStatus(me.id, Number(id), approve);
   revalidatePath(`/${me.username}`);
   return done(approve ? 'Eintrag freigegeben' : 'Eintrag gelöscht');
+}
+
+export async function answerQuestionAction(id: number, answer: string, show: boolean): Promise<Result> {
+  const me = await requireUser();
+  const a = String(answer || '').trim().slice(0, 500);
+  await answerQuestion(me.id, Number(id), a, !!show);
+  revalidatePath(`/${me.username}`);
+  return done(a ? (show ? 'Antwort steht jetzt auf deinem Profil' : 'Antwort gespeichert (nur für dich)') : 'Antwort entfernt');
+}
+
+export async function deleteQuestionAction(id: number): Promise<Result> {
+  const me = await requireUser();
+  await deleteQuestion(me.id, Number(id));
+  revalidatePath(`/${me.username}`);
+  return done('Frage gelöscht');
 }

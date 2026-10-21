@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { Profile } from '@/lib/profile';
 import { Stage } from './engine';
+import { FxOverlay } from './Overlay';
 
 type Props = {
   effect: string;
@@ -13,12 +14,16 @@ type Props = {
   media?: Profile['media'];
   /** Own cursor image (CSS cursor). */
   cursorImage?: string;
+  /** Music reactions of the background (see engine.ts). */
+  react?: { bg: boolean; spectrum: boolean; intensity: number };
+  /** Foreground layer: ambient effect and click bursts. */
+  overlay?: { ambient: string; click: string; emoji: string };
   className?: string;
   style?: React.CSSProperties;
   children?: ReactNode;
 };
 
-export function FxStage({ effect, cursor = 'none', accent, tilt = false, media, cursorImage, className = '', style, children }: Props) {
+export function FxStage({ effect, cursor = 'none', accent, tilt = false, media, cursorImage, react, overlay, className = '', style, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const hasMedia = !!media && media.type !== 'none' && !!media.url;
@@ -36,6 +41,10 @@ export function FxStage({ effect, cursor = 'none', accent, tilt = false, media, 
     stage.current.tilt = tilt;
   }, [effect, cursor, accent, tilt, hasMedia, media?.overlay, cursorImage]);
 
+  useEffect(() => {
+    if (stage.current) stage.current.react = react ?? { bg: false, spectrum: false, intensity: 0.7 };
+  }, [react?.bg, react?.spectrum, react?.intensity]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const cls = ['stage', className, hasMedia ? 'has-media' : '', hasMedia && !media!.overlay ? 'media-only' : '', cursorImage ? 'own-cursor' : ''].filter(Boolean).join(' ');
   const st = cursorImage ? ({ ...style, '--own-cursor': `url("${cursorImage}") 4 4, auto` } as React.CSSProperties) : style;
 
@@ -49,6 +58,7 @@ export function FxStage({ effect, cursor = 'none', accent, tilt = false, media, 
         </div>
       )}
       {children ? <div className="stage-slot">{children}</div> : null}
+      {overlay && (overlay.ambient !== 'none' || overlay.click !== 'none') && <FxOverlay ambient={overlay.ambient} click={overlay.click} emoji={overlay.emoji} accent={accent} />}
     </div>
   );
 }

@@ -20,6 +20,7 @@ const alias = {
       if (args.path === '../actions' && args.importer.includes('/app/dashboard/')) return { path: abs('demo/mocks/actions.ts') };
       if (args.path === './actions' && args.importer.includes('/app/dashboard/admin/')) return { path: abs('demo/mocks/admin-actions.ts') };
       if (args.path === './actions' && args.importer.includes('/app/dashboard/community/')) return { path: abs('demo/mocks/community-actions.ts') };
+      if (args.path === './actions' && args.importer.includes('/app/dashboard/stories/')) return { path: abs('demo/mocks/stories-actions.ts') };
       return undefined;
     });
   },

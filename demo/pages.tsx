@@ -13,13 +13,14 @@ import { AdminPanel } from '@/app/dashboard/admin/AdminPanel';
 import { AchievementsView } from '@/app/dashboard/achievements/AchievementsView';
 import { Community } from '@/app/dashboard/community/Community';
 import { progress } from '@/lib/achievements';
+import { StoriesEditor } from '@/app/dashboard/stories/StoriesEditor';
 import { Templates } from '@/app/dashboard/templates/Templates';
 import { PROFILE_TABS, type ProfileTab } from '@/components/dashboard/nav';
 import { Icon, Logo } from '@/components/icons';
 import { PublicProfile } from '@/components/profile/PublicProfile';
 import type { Range } from '@/lib/analytics';
 import { linkState, type EditableLink } from '@/lib/links';
-import { accent2, BADGES, encodeLook, initials, inkFor, parseProfile, rarity } from '@/lib/profile';
+import { accent2, BADGES, encodeLook, initials, inkFor, parseProfile, pollId, rarity } from '@/lib/profile';
 import { demoReport } from './report';
 import { useDemo } from './store';
 
@@ -251,8 +252,9 @@ export function AchievementsPage() {
 }
 
 export function CommunityPage({ params }: { params: URLSearchParams }) {
-  const { friends, guestbook, profile } = useDemo();
-  return <Community tab={params.get('tab') === 'guestbook' ? 'guestbook' : 'friends'} friends={friends} requests={{ incoming: [{ id: 91, username: 'lena', name: 'Lena', accent: '#6be29a', avatar: false }], outgoing: [] }} entries={guestbook} profile={profile} />;
+  const { friends, guestbook, profile, questions } = useDemo();
+  const t = params.get('tab');
+  return <Community questions={questions} tab={t === 'guestbook' || t === 'questions' ? t : 'friends'} friends={friends} requests={{ incoming: [{ id: 91, username: 'lena', name: 'Lena', accent: '#6be29a', avatar: false }], outgoing: [] }} entries={guestbook} profile={profile} />;
 }
 
 export function BadgesPage() {
@@ -356,11 +358,17 @@ export function ExplorePage() {
 export function PublicPage() {
   const { user, profile, links, clicks } = useDemo();
   const views = demoReport(7, links, clicks).allTimeViews;
-  const { likes, friends, guestbook } = useDemo();
+  const { likes, friends, guestbook, stories, questions, votes } = useDemo();
   return (
     <PublicProfile profile={profile} links={publicLinks(links)} user={{ username: user.username, uid: user.id, views }} host={SITE_HOST} brand={BRAND} likes={likes}
-      level={{ level: 9, pct: 62, count: 11, total: 24 }} social={{ friends, guestbook: guestbook.filter(g => g.status === 'approved') }} />
+      level={{ level: 9, pct: 62, count: 11, total: 24 }} social={{ friends, guestbook: guestbook.filter(g => g.status === 'approved') }}
+      stories={stories} extra={{ answers: questions.filter(q => q.public && q.answeredAt), poll: { id: pollId(profile.poll), counts: votes } }} />
   );
+}
+
+export function StoriesPage() {
+  const { stories, profile, user } = useDemo();
+  return <StoriesEditor stories={stories} accent={profile.accent} username={user.username} />;
 }
 
 export function LandingPage() {

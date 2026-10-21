@@ -11,7 +11,7 @@ import { Icon } from '@/components/icons';
 import { ProfileCard, parseLrc, type CardUser } from '@/components/profile/ProfileCard';
 import type { PublicLink } from '@/lib/links';
 import {
-  accent2, ACCENTS, ALIGNS, contrast, CURSORS, EFFECTS, FONTS, hexRgb, inkFor, LOOKS, NAME_FX, NICHES, type Profile,
+  accent2, ACCENTS, ALIGNS, AMBIENT_FX, CLICK_FX, contrast, CURSORS, EFFECTS, FONTS, hexRgb, inkFor, LOOKS, NAME_FX, NICHES, type Profile,
 } from '@/lib/profile';
 import { detectMusic, SOURCE_LABEL } from '@/lib/music';
 import { resolveMusicAction, saveProfileAction } from '../actions';
@@ -70,7 +70,7 @@ export function ProfileEditor({ initial, links, user, premium, host, tab }: Prop
       </nav>
 
       <div className="editor">
-        <div className="stack" style={{ gap: 32 }}>
+        <div className="stack num-sections" style={{ gap: 32 }}>
           {tab === 'you' && <YouTab draft={draft} set={set} />}
           {tab === 'card' && <CardTab draft={draft} set={set} premium={premium} onLocked={label => toast(`${label} gehört zu Premium.`, { error: true })} />}
           {tab === 'page' && <PageTab draft={draft} set={set} />}
@@ -84,7 +84,9 @@ export function ProfileEditor({ initial, links, user, premium, host, tab }: Prop
             <a className="hint mono" href={`/${user.username}`} target="_blank" rel="noreferrer">{host}/{user.username} ↗</a>
           </div>
           <div className="preview-frame">
-            <FxStage effect={draft.background} cursor={draft.cursor} accent={draft.accent} tilt={draft.tilt} media={draft.media} cursorImage={draft.cursorImage}>
+            <FxStage effect={draft.background} cursor={draft.cursor} accent={draft.accent} tilt={draft.tilt} media={draft.media} cursorImage={draft.cursorImage}
+              overlay={{ ambient: draft.ambient, click: draft.clickFx, emoji: draft.clickEmoji }}
+              react={{ bg: draft.visualizer && !!draft.music.source && draft.viz.bg, spectrum: draft.visualizer && !!draft.music.source && draft.viz.bars, intensity: draft.viz.intensity / 100 }}>
               <ProfileCard profile={draft} links={links} user={user} host={host} preview audio={audio} />
             </FxStage>
           </div>
@@ -107,7 +109,7 @@ type TabProps = { draft: Profile; set: <K extends keyof Profile>(k: K, v: Profil
 function Section({ n, title, text, children }: { n: string; title: string; text?: string; children: ReactNode }) {
   return (
     <section className="acc">
-      <div className="acc-head"><div><span className="sec-num">{n}</span><h2>{title}</h2>{text && <p>{text}</p>}</div></div>
+      <div className="acc-head"><div><span className="sec-num" data-n={n} /><h2>{title}</h2>{text && <p>{text}</p>}</div></div>
       {children}
     </section>
   );
@@ -314,6 +316,14 @@ function PageTab({ draft, set }: TabProps) {
         </div>
         <p className="hint">Am besten ein PNG oder GIF mit 32 × 32 Pixeln. Browser zeigen größere Cursor nicht an.</p>
       </Section>
+      <Section n="03b" title="Profil-Effekt und Klick" text="Ein Effekt, der über deine ganze Seite schwebt, und was passiert, wenn Besucher irgendwo hinklicken. Beides wird mit deiner Musik schneller.">
+        <div className="field">Profil-Effekt<Chips name="amb" items={AMBIENT_FX} value={draft.ambient} onChange={v => set('ambient', v)} /></div>
+        <div className="field">Klick-Effekt<Chips name="clk" items={CLICK_FX} value={draft.clickFx} onChange={v => set('clickFx', v)} /></div>
+        {draft.clickFx === 'emoji' && (
+          <label className="field" htmlFor="clk-emoji" style={{ maxWidth: 200 }}>Emoji<input className="in" id="clk-emoji" value={draft.clickEmoji} maxLength={16} onChange={e => set('clickEmoji', e.target.value)} placeholder="✨" /></label>
+        )}
+        <p className="hint">Probier es in der Vorschau rechts aus: einfach hineinklicken.</p>
+      </Section>
       <Section n="04" title="Browser-Tab" text="Was im Tab steht, während jemand deine Seite offen hat. Dein Avatar wird zum Tab-Symbol.">
         <label className="field" htmlFor="t-title">Tab-Titel<input className="in" id="t-title" value={draft.tabTitle} maxLength={60} onChange={e => set('tabTitle', e.target.value)} placeholder={draft.displayName || 'Dein Anzeigename'} /></label>
         <div className="field">Animation<Chips name="tabanim" items={[['static', 'Keine'], ['typing', 'Tippen'], ['scroll', 'Laufschrift']] as const} value={draft.tabAnim} onChange={v => set('tabAnim', v)} /></div>
@@ -325,7 +335,8 @@ function PageTab({ draft, set }: TabProps) {
         <label className="switch" htmlFor="disc"><span>In „Entdecken“ zeigen<small>Dein Profil erscheint auf der öffentlichen Entdecken-Seite und in der Rangliste.</small></span><input type="checkbox" id="disc" checked={draft.discoverable} onChange={e => set('discoverable', e.target.checked)} /></label>
       </Section>
       <Section n="06" title="Extras" text="Kleine Dinge, die dein Profil lebendig machen.">
-        <label className="switch" htmlFor="viz"><span>Visualizer<small>Avatar-Ring und Player pulsieren im Takt deines Profilsongs. Bei hochgeladenen Audiodateien echt zur Musik, bei YouTube und Co. gleichmäßig.</small></span><input type="checkbox" id="viz" checked={draft.visualizer} onChange={e => set('visualizer', e.target.checked)} /></label>
+        <label className="switch" htmlFor="viz"><span>Visualizer<small>Deine Seite reagiert auf deinen Profilsong. Hochgeladene Audiodateien werden echt analysiert (Bass, Mitten, Höhen, Beats). YouTube, SoundCloud und Spotify lassen sich nicht auslesen, dort läuft ein passender Beat mit.</small></span><input type="checkbox" id="viz" checked={draft.visualizer} onChange={e => set('visualizer', e.target.checked)} /></label>
+        {draft.visualizer && <VizSettings draft={draft} set={set} />}
         <label className="switch" htmlFor="lvl"><span>Level zeigen<small>Dein Level aus den Erfolgen neben der UID.</small></span><input type="checkbox" id="lvl" checked={draft.showLevel} onChange={e => set('showLevel', e.target.checked)} /></label>
         <label className="switch" htmlFor="live"><span>„Gerade hier“ zeigen<small>Wie viele echte Besucher in den letzten 5 Minuten auf deiner Seite waren.</small></span><input type="checkbox" id="live" checked={draft.showLive} onChange={e => set('showLive', e.target.checked)} /></label>
         <label className="switch" htmlFor="egg"><span>Easter Egg<small>Eine geheime Nachricht mit Konfetti. Wer den Konami-Code tippt (↑ ↑ ↓ ↓ ← → ← → B A) oder fünfmal schnell auf deinen Avatar tippt, findet sie.</small></span><input type="checkbox" id="egg" checked={draft.secret.on} onChange={e => set('secret', { ...draft.secret, on: e.target.checked })} /></label>
@@ -346,6 +357,29 @@ function PageTab({ draft, set }: TabProps) {
         )}
       </Section>
     </>
+  );
+}
+
+function VizSettings({ draft, set }: TabProps) {
+  const v = draft.viz;
+  const setViz = (patch: Partial<Profile['viz']>) => set('viz', { ...v, ...patch });
+  const sw = (id: keyof Profile['viz'], label: string, note: string) => (
+    <label className="switch" htmlFor={`vz-${id}`}><span>{label}<small>{note}</small></span><input type="checkbox" id={`vz-${id}`} checked={!!v[id]} onChange={e => setViz({ [id]: e.target.checked })} /></label>
+  );
+  return (
+    <div className="card card-pad stack viz-box">
+      {!draft.music.source && <p className="hint" style={{ margin: 0 }}>Lege unter Musik &amp; Widgets einen Profilsong fest, dann siehst du den Visualizer in der Vorschau, sobald du auf Abspielen drückst.</p>}
+      <div className="field">Avatar<Chips name="vz-style" items={[['spectrum', 'Spektrum-Kreis'], ['orbit', 'Orbit'], ['ring', 'Puls-Ring']] as const} value={v.style} onChange={x => setViz({ style: x })} /></div>
+      {sw('bg', 'Hintergrund reagiert', 'Der Hintergrund-Effekt läuft mit der Lautstärke schneller, reagiert auf den Bass, und Beats schicken Druckwellen über die Seite.')}
+      {sw('bars', 'Spektrum am unteren Rand', 'Gespiegelte Frequenz-Balken über die ganze Breite.')}
+      {sw('bounce', 'Karte federt im Beat', 'Die Karte pulsiert leicht bei jedem Schlag, der Name leuchtet mit dem Bass.')}
+      {sw('flash', 'Lichtblitz im Beat', 'Kurzes Aufhellen bei jedem Schlag. Nicht für Leute, die empfindlich auf Blitze reagieren.')}
+      {sw('hue', 'Farben wandern mit', 'Der Hintergrund verschiebt seine Farbe im Tempo der Musik.')}
+      {sw('shake', 'Kamera wackelt bei Drops', 'Die Seite ruckelt bei kräftigen Beats leicht in zufällige Richtungen.')}
+      <label className="field" htmlFor="vz-int"><span className="field-row"><span>Intensität</span><span className="hint mono">{v.intensity} %</span></span>
+        <input type="range" className="range" id="vz-int" min={10} max={100} step={5} value={v.intensity} onChange={e => setViz({ intensity: Number(e.target.value) })} />
+      </label>
+    </div>
   );
 }
 
@@ -519,6 +553,26 @@ function WidgetsTab({ draft, set, setWidget }: TabProps & { setWidget: <K extend
             <label className="field" htmlFor="t-wb"><span className="field-row"><span>Text</span><span className="hint mono">{W.text.body.length}/600</span></span>
               <textarea className="in" id="t-wb" rows={4} value={W.text.body} maxLength={600} onChange={e => setWidget('text', { body: e.target.value })} />
             </label>
+          </>}
+        </div>
+        <div className="card card-pad stack">
+          {sw('w-poll', 'Umfrage', 'Eine Frage mit 2 bis 4 Antworten. Jede Person stimmt einmal ab, Bots zählen nicht. Änderst du Frage oder Antworten, beginnt die Umfrage neu.', draft.poll.on, v => set('poll', { ...draft.poll, on: v }))}
+          {draft.poll.on && <>
+            <label className="field" htmlFor="pl-q">Frage<input className="in" id="pl-q" value={draft.poll.question} maxLength={80} onChange={e => set('poll', { ...draft.poll, question: e.target.value })} placeholder="z. B. Welches Spiel streame ich als Nächstes?" /></label>
+            <div className="grid-2">
+              {draft.poll.options.map((o, i) => (
+                <label key={i} className="field" htmlFor={`pl-o${i}`}>Antwort {i + 1}
+                  <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                    <input className="in" id={`pl-o${i}`} value={o} maxLength={40} onChange={e => set('poll', { ...draft.poll, options: draft.poll.options.map((x, j) => (j === i ? e.target.value : x)) })} />
+                    {draft.poll.options.length > 2 && <button type="button" className="icon-btn" aria-label={`Antwort ${i + 1} entfernen`} onClick={() => set('poll', { ...draft.poll, options: draft.poll.options.filter((_, j) => j !== i) })}><Icon name="x" /></button>}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="row">
+              {draft.poll.options.length < 4 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => set('poll', { ...draft.poll, options: [...draft.poll.options, ''] })}><Icon name="plus" />Antwort</button>}
+              <Chips name="pl-r" items={[['after', 'Ergebnis nach dem Abstimmen'], ['always', 'Ergebnis immer sichtbar']] as const} value={draft.poll.results} onChange={v => set('poll', { ...draft.poll, results: v })} />
+            </div>
           </>}
         </div>
         <div className="card card-pad stack">

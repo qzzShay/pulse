@@ -9,7 +9,9 @@ import { accent2, initials, inkFor, rarity, type Profile } from '@/lib/profile';
 import { DiscordPresence } from './DiscordPresence';
 import { Countdown, LikeButton, LocalClock, TextCard } from './Extras';
 import { GateDialog } from './Gate';
-import { useVisualizer } from './Visualizer';
+import { AvatarViz, useVisualizer } from './Visualizer';
+import { StoryViewer, type StoryItem } from './Stories';
+import { AskWidget, PollWidget } from './Engage';
 import { FriendsRow, Guestbook, type SocialEntry, type SocialFriend } from './Social';
 import { MusicPlayer } from './MusicPlayer';
 import { Badges, Connections, iconColor, LiveBanner, useTwitchLive } from './ProfileParts';
@@ -36,7 +38,12 @@ type Props = {
   social?: { friends: SocialFriend[]; guestbook: SocialEntry[] };
   /** Real visitors in the last minutes, when the profile shows it. */
   liveNow?: number | null;
+  stories?: StoryItem[];
+  extra?: CardExtra;
 };
+
+/** Server data for the interactive widgets (answered questions, poll results). */
+export type CardExtra = { answers?: { id: number; question: string; answer: string; answeredAt: number | null }[]; poll?: { id: string; counts: number[] } };
 
 const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*<>/';
 const STATUS_LABEL = { online: 'Online', idle: 'Abwesend', dnd: 'Nicht stören', offline: 'Offline' } as const;
@@ -86,9 +93,14 @@ function useTypewriter(lines: string[], active: boolean) {
   return text;
 }
 
-export function ProfileCard({ profile: p, links, user, host, preview = false, audio, likes = 0, viewToken, level, social, liveNow }: Props) {
+export function ProfileCard({ profile: p, links, user, host, preview = false, audio, likes = 0, viewToken, level, social, liveNow, stories = [], extra }: Props) {
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [seen, setSeen] = useState(true);
+  useEffect(() => { try { setSeen(Number(localStorage.getItem(`pulse-seen-${user.username}`) ?? 0) >= (stories[stories.length - 1]?.id ?? 0)); } catch { setSeen(false); } }, [stories, user.username]);
+  const closeStories = useCallback((lastId: number) => { setStoryOpen(false); setSeen(true); try { localStorage.setItem(`pulse-seen-${user.username}`, String(lastId)); } catch { /* ignore */ } }, [user.username]);
   const cardRef = useRef<HTMLElement>(null);
-  useVisualizer(cardRef, audio, p.visualizer && !!p.music.source);
+  const vizOn = p.visualizer && !!p.music.source;
+  useVisualizer(cardRef, audio, vizOn, p.viz);
   const taps = useRef<number[]>([]);
   const tapAvatar = () => {
     if (!p.secret.on || p.secret.trigger === 'konami') return;
@@ -138,14 +150,19 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
   };
 
   return (
-    <article ref={cardRef} className={`prof${p.visualizer && p.music.source ? ' viz' : ''} look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}${p.banner ? ' has-banner' : ''}`} style={style}>
+    <article ref={cardRef} className={`prof${vizOn ? ` viz viz-${p.viz.style}` : ''} look-${p.look} align-${p.align} nfx-${p.nameFx} font-${p.nameFont}${p.banner ? ' has-banner' : ''}`} style={style}>
       {p.banner && <div className="pbanner"><img src={p.banner} alt="" /></div>}
-      <div className="pav" onClick={tapAvatar}>
+      <div className={`pav${stories.length ? ` has-story${seen ? ' seen' : ''}` : ''}`} onClick={() => (stories.length && !preview ? setStoryOpen(true) : tapAvatar())}
+        role={stories.length ? 'button' : undefined} tabIndex={stories.length ? 0 : undefined} aria-label={stories.length ? 'Story ansehen' : undefined}
+        onKeyDown={e => { if (stories.length && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setStoryOpen(true); } }}>
+        {vizOn && p.viz.style !== 'ring' && <AvatarViz style={p.viz.style} accent={p.accent} />}
         <div className="pav-in">{avatar ? <img src={avatar} alt="" /> : <span>{initials(name)}</span>}</div>
         <span className={`pdot s-${status}`} title={STATUS_LABEL[status]} />
       </div>
       <div className="pid">
-        <h1 className="pname" data-text={name} onPointerEnter={p.nameFx === 'decrypt' ? replay : undefined}>{shown}</h1>
+        <h1 className="pname" data-text={name} aria-label={p.nameFx === 'wave' ? name : undefined} onPointerEnter={p.nameFx === 'decrypt' ? replay : undefined}>
+          {p.nameFx === 'wave' ? [...name].map((ch, i) => <span key={i} aria-hidden="true" style={{ '--i': i } as CSSProperties}>{ch === ' ' ? '\u00a0' : ch}</span>) : shown}
+        </h1>
         <div className="phandle">@{user.username} <span className={`rar r-${r.key}`}>{r.label}</span> <span>UID {user.uid.toLocaleString('de-DE')}</span>{p.pronouns && <span className="ppron">{p.pronouns}</span>}
           {p.showLevel && level && <span className="plevel" title={`${level.count} von ${level.total} Erfolgen · ${Math.round(level.pct)} % bis Level ${level.level + 1}`} style={{ '--lv': `${level.pct}%` } as CSSProperties}>Lvl {level.level}</span>}</div>
       </div>
@@ -229,8 +246,14 @@ export function ProfileCard({ profile: p, links, user, host, preview = false, au
         <nav className="plinks" aria-label="Links">{links.map(rowLink)}</nav>
       )}
 
+      {p.poll.on && <PollWidget username={user.username} poll={p.poll} initial={extra?.poll} token={viewToken} preview={preview} />}
+      {p.questions.on && <AskWidget username={user.username} title={p.questions.title} answers={extra?.answers ?? []} preview={preview} />}
       {p.guestbook.on && <Guestbook username={user.username} entries={social?.guestbook ?? []} preview={preview} />}
 
+      {storyOpen && stories.length > 0 && (
+        <StoryViewer stories={stories} name={name} onClose={closeStories}
+          avatar={avatar ? <img src={avatar} alt="" /> : <span style={{ background: `linear-gradient(135deg, ${p.accent}, ${accent2(p.accent)})`, color: inkFor(p.accent) }}>{initials(name)}</span>} />
+      )}
       {gated && <GateDialog link={gated} onClose={() => setGated(null)} />}
       <div className="pfoot">
         <span className="pfoot-l">

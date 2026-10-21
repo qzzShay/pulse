@@ -29,3 +29,14 @@ export async function moderateEntryAction(id: number, approve: boolean): Promise
   update(s => ({ guestbook: approve ? s.guestbook.map(g => (g.id === id ? { ...g, status: 'approved' as const } : g)) : s.guestbook.filter(g => g.id !== id) }));
   return { ok: true, message: approve ? 'Eintrag freigegeben' : 'Eintrag gelöscht' };
 }
+
+export async function answerQuestionAction(id: number, answer: string, show: boolean): Promise<Result> {
+  await wait();
+  update(s => ({ questions: s.questions.map(q => (q.id === id ? { ...q, answer, public: show && !!answer, answeredAt: answer ? Date.now() : null } : q)) }));
+  return { ok: true, message: show ? 'Antwort steht jetzt auf deinem Profil' : 'Antwort gespeichert' };
+}
+
+export async function deleteQuestionAction(id: number): Promise<Result> {
+  await wait(); update(s => ({ questions: s.questions.filter(q => q.id !== id) }));
+  return { ok: true, message: 'Frage gelöscht' };
+}

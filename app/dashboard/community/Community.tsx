@@ -7,11 +7,12 @@ import { useToast } from '@/components/dashboard/Toast';
 import { Icon } from '@/components/icons';
 import { accent2, inkFor, initials, type Profile } from '@/lib/profile';
 import { saveProfileAction, type Result } from '../actions';
-import { acceptFriendAction, addFriendAction, moderateEntryAction, removeFriendAction } from './actions';
+import { acceptFriendAction, addFriendAction, answerQuestionAction, deleteQuestionAction, moderateEntryAction, removeFriendAction } from './actions';
 
 type Card = { id: number; username: string; name: string; accent: string; avatar: boolean };
 type Entry = { id: number; author: string; message: string; status: 'pending' | 'approved'; createdAt: number };
-type Props = { tab: 'friends' | 'guestbook'; friends: Card[]; requests: { incoming: Card[]; outgoing: Card[] }; entries: Entry[]; profile: Profile };
+type Q = { id: number; question: string; answer: string; public: boolean; createdAt: number; answeredAt: number | null };
+type Props = { tab: 'friends' | 'guestbook' | 'questions'; friends: Card[]; requests: { incoming: Card[]; outgoing: Card[] }; entries: Entry[]; profile: Profile; questions?: Q[] };
 
 export function Avatar({ c, size = 40 }: { c: Card; size?: number }) {
   return (
@@ -21,7 +22,7 @@ export function Avatar({ c, size = 40 }: { c: Card; size?: number }) {
   );
 }
 
-export function Community({ tab, friends, requests, entries, profile }: Props) {
+export function Community({ tab, friends, requests, entries, profile, questions = [] }: Props) {
   const [name, setName] = useState('');
   const [pending, start] = useTransition();
   const toast = useToast();
@@ -45,9 +46,10 @@ export function Community({ tab, friends, requests, entries, profile }: Props) {
       <nav className="seg" aria-label="Bereich">
         <Link href="/dashboard/community" aria-current={tab === 'friends' ? 'page' : undefined}><Icon name="users" />Freunde{requests.incoming.length > 0 && <span className="nav-count" style={{ marginLeft: 6 }}>{requests.incoming.length}</span>}</Link>
         <Link href="/dashboard/community?tab=guestbook" aria-current={tab === 'guestbook' ? 'page' : undefined}><Icon name="book" />Gästebuch{pendingEntries.length > 0 && <span className="nav-count" style={{ marginLeft: 6 }}>{pendingEntries.length}</span>}</Link>
+        <Link href="/dashboard/community?tab=questions" aria-current={tab === 'questions' ? 'page' : undefined}><Icon name="sparkles" />Fragen{questions.filter(q => !q.answeredAt).length > 0 && <span className="nav-count" style={{ marginLeft: 6 }}>{questions.filter(q => !q.answeredAt).length}</span>}</Link>
       </nav>
 
-      {tab === 'friends' ? (
+      {tab === 'questions' ? <Questions profile={profile} questions={questions} run={run} pending={pending} /> : tab === 'friends' ? (
         <>
           <form className="card card-pad row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); run(addFriendAction(name), () => setName('')); }}>
             <label className="field" htmlFor="fr-name" style={{ flex: '1 1 260px' }}>Freund hinzufügen
@@ -115,5 +117,53 @@ export function Community({ tab, friends, requests, entries, profile }: Props) {
         </>
       )}
     </>
+  );
+}
+
+function Questions({ profile, questions, run, pending }: { profile: Profile; questions: Q[]; run: (p: Promise<Result>, after?: () => void) => void; pending: boolean }) {
+  const q = profile.questions;
+  const [title, setTitle] = useState(q.title);
+  const open = questions.filter(x => !x.answeredAt), done = questions.filter(x => x.answeredAt);
+  return (
+    <>
+      <div className="card card-pad stack">
+        <label className="switch" htmlFor="q-on"><span>„Frag mich“ auf meinem Profil<small>Besucher stellen dir anonym Fragen. Du entscheidest, welche Antworten auf deinem Profil erscheinen.</small></span>
+          <input type="checkbox" id="q-on" checked={q.on} disabled={pending} onChange={e => run(saveProfileAction({ ...profile, questions: { ...q, on: e.target.checked } }))} /></label>
+        {q.on && (
+          <form className="row" style={{ alignItems: 'flex-end' }} onSubmit={e => { e.preventDefault(); run(saveProfileAction({ ...profile, questions: { ...q, title } })); }}>
+            <label className="field" htmlFor="q-title" style={{ flex: '1 1 240px' }}>Überschrift<input className="in" id="q-title" value={title} maxLength={40} onChange={e => setTitle(e.target.value)} placeholder="Frag mich etwas" /></label>
+            <button type="submit" className="btn btn-ghost btn-sm" disabled={pending || title === q.title}>Speichern</button>
+          </form>
+        )}
+      </div>
+      <section className="stack" style={{ gap: 8 }}>
+        <span className="label">Neue Fragen ({open.length})</span>
+        {open.length === 0 ? <div className="empty"><Icon name="sparkles" /><span>Keine offenen Fragen.</span></div> : open.map(x => <QuestionRow key={x.id} q={x} run={run} pending={pending} />)}
+      </section>
+      {done.length > 0 && (
+        <section className="stack" style={{ gap: 8 }}>
+          <span className="label">Beantwortet ({done.length})</span>
+          {done.map(x => <QuestionRow key={x.id} q={x} run={run} pending={pending} />)}
+        </section>
+      )}
+    </>
+  );
+}
+
+function QuestionRow({ q, run, pending }: { q: Q; run: (p: Promise<Result>, after?: () => void) => void; pending: boolean }) {
+  const [answer, setAnswer] = useState(q.answer);
+  const [show, setShow] = useState(q.answeredAt ? q.public : true);
+  return (
+    <form className="card card-pad stack qrow" onSubmit={e => { e.preventDefault(); run(answerQuestionAction(q.id, answer, show)); }}>
+      <div className="field-row"><b className="qrow-q">{q.question}</b><span className="hint mono">{new Date(q.createdAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>
+      <textarea className="in" rows={2} maxLength={500} value={answer} onChange={e => setAnswer(e.target.value)} placeholder="Deine Antwort" aria-label="Antwort" />
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <label className="chk"><input type="checkbox" checked={show} onChange={e => setShow(e.target.checked)} /> Auf meinem Profil zeigen</label>
+        <span className="row">
+          <button type="button" className="icon-btn" aria-label="Frage löschen" disabled={pending} onClick={() => run(deleteQuestionAction(q.id))}><Icon name="trash" /></button>
+          <button type="submit" className="btn btn-white btn-sm" disabled={pending || !answer.trim()}>{q.answeredAt ? 'Aktualisieren' : 'Antworten'}</button>
+        </span>
+      </div>
+    </form>
   );
 }

@@ -9,6 +9,8 @@ import { ProfileCard, type CardUser } from './ProfileCard';
 import { ReportButton } from './ReportButton';
 import { ContentWarning, SecretOverlay } from './Extras';
 import type { SocialEntry, SocialFriend } from './Social';
+import type { StoryItem } from './Stories';
+import type { CardExtra } from './ProfileCard';
 
 /** Animates the browser tab title: typed out letter by letter, or scrolling like a marquee. */
 function useTabTitle(title: string, anim: Profile['tabAnim']) {
@@ -38,9 +40,9 @@ function useFavicon(src: string | null) {
   }, [src]);
 }
 
-type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string; likes?: number; level?: { level: number; pct: number; count: number; total: number } | null; social?: { friends: SocialFriend[]; guestbook: SocialEntry[] } };
+type Props = { profile: Profile; links: PublicLink[]; user: CardUser; host: string; brand: string; viewToken?: string; likes?: number; level?: { level: number; pct: number; count: number; total: number } | null; social?: { friends: SocialFriend[]; guestbook: SocialEntry[] }; stories?: StoryItem[]; extra?: CardExtra };
 
-export function PublicProfile({ profile, links, user, host, brand, viewToken, likes = 0, level = null, social }: Props) {
+export function PublicProfile({ profile, links, user, host, brand, viewToken, likes = 0, level = null, social, stories = [], extra }: Props) {
   const [warned, setWarned] = useState(!profile.contentWarning.on);
   const [entered, setEntered] = useState(!profile.enterScreen);
   const [gone, setGone] = useState(!profile.enterScreen);
@@ -68,6 +70,7 @@ export function PublicProfile({ profile, links, user, host, brand, viewToken, li
     }).catch(() => {});
   }, [user.username, viewToken]);
 
+  const vizOn = profile.visualizer && !!profile.music.source;
   const [secret, setSecret] = useState(false);
   const closeSecret = useCallback(() => setSecret(false), []);
   const [liveNow, setLiveNow] = useState<number | null>(null);
@@ -121,8 +124,10 @@ export function PublicProfile({ profile, links, user, host, brand, viewToken, li
 
   return (
     <main className="prof-page">
-      <FxStage effect={profile.background} cursor={profile.cursor} accent={profile.accent} tilt={profile.tilt} media={profile.media} cursorImage={profile.cursorImage}>
-        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} likes={likes} viewToken={viewToken} level={level} social={social} liveNow={liveNow} />
+      <FxStage effect={profile.background} cursor={profile.cursor} accent={profile.accent} tilt={profile.tilt} media={profile.media} cursorImage={profile.cursorImage}
+        overlay={{ ambient: profile.ambient, click: profile.clickFx, emoji: profile.clickEmoji }}
+        react={{ bg: vizOn && profile.viz.bg, spectrum: vizOn && profile.viz.bars, intensity: profile.viz.intensity / 100 }}>
+        <ProfileCard profile={profile} links={links} user={user} host={host} audio={audio} likes={likes} viewToken={viewToken} level={level} social={social} liveNow={liveNow} stories={stories} extra={extra} />
         <div className="prof-foot"><a href="/">{brand}</a></div>
       </FxStage>
       <ReportButton username={user.username} />

@@ -7,6 +7,8 @@ import { aliasOwner, likeCount } from '@/lib/community';
 import { ACHIEVEMENTS, progress } from '@/lib/achievements';
 import { achievementStats } from '@/lib/stats';
 import { friendsOf, guestEntries } from '@/lib/social';
+import { activeStories, listQuestions, pollResults } from '@/lib/engage';
+import { pollId } from '@/lib/profile';
 import { BRAND, SITE_HOST } from '@/lib/config';
 import { getLinks, getProfile, getUserByUsername, publicLinks } from '@/lib/data';
 import { viewToken } from '@/lib/pow';
@@ -43,13 +45,19 @@ export default async function ProfileRoute({ params }: Params) {
   const ua = (await headers()).get('user-agent') ?? '';
   const device = deviceOf(ua) === 'desktop' ? 'desktop' as const : 'mobile' as const;
   const [profile, links, views, likes] = await Promise.all([getProfile(user.id), getLinks(user.id), totalViews(user.id), likeCount(user.id)]);
-  const [prog, friends, guestbook] = await Promise.all([
+  const pid = pollId(profile.poll);
+  const [prog, friends, guestbook, stories, answers, counts] = await Promise.all([
     achievementStats(user, profile).then(progress),
     profile.showFriends ? friendsOf(user.id) : Promise.resolve([]),
     profile.guestbook.on ? guestEntries(user.id, true, 12) : Promise.resolve([]),
+    activeStories(user.id),
+    profile.questions.on ? listQuestions(user.id, true, 8) : Promise.resolve([]),
+    profile.poll.on ? pollResults(user.id, pid, profile.poll.options.length) : Promise.resolve([]),
   ]);
   return (
     <PublicProfile
+      stories={stories.map(({ id, text, image, bg, createdAt }) => ({ id, text, image, bg, createdAt }))}
+      extra={{ answers: answers.map(({ id, question, answer, answeredAt }) => ({ id, question, answer, answeredAt })), poll: profile.poll.on ? { id: pid, counts } : undefined }}
       social={{ friends, guestbook: guestbook.map(({ id, author, message, createdAt }) => ({ id, author, message, createdAt })) }}
       level={{ level: prog.level, pct: prog.pct, count: prog.unlocked.length, total: ACHIEVEMENTS.length }}
       profile={profile}

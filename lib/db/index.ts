@@ -115,6 +115,35 @@ const SCHEMA_SQL = [
     created_at INTEGER NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS snapshots_user ON snapshots(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS stories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    image TEXT NOT NULL DEFAULT '',
+    bg TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS stories_user ON stories(user_id, expires_at)`,
+  `CREATE TABLE IF NOT EXISTS questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT NOT NULL DEFAULT '',
+    public INTEGER NOT NULL DEFAULT 0,
+    asker TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    answered_at INTEGER
+  )`,
+  `CREATE INDEX IF NOT EXISTS questions_user ON questions(user_id, created_at)`,
+  `CREATE TABLE IF NOT EXISTS votes (
+    user_id INTEGER NOT NULL,
+    poll_id TEXT NOT NULL,
+    voter TEXT NOT NULL,
+    option INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, poll_id, voter)
+  )`,
   `CREATE TABLE IF NOT EXISTS app_settings (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL

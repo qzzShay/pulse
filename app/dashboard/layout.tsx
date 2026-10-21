@@ -13,7 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const owner = user.role === 'owner';
   const [profile, openReports, ann, pend] = await Promise.all([getProfile(user.id), owner ? openReportCount() : 0, getSetting('announcement', ''), pendingCounts(user.id)]);
   return (
-    <Shell brand={BRAND} announcement={parseAnnouncement(ann)} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner, openReports, counts: { '/dashboard/community': pend.guestbook + pend.friends } }}>
+    <Shell brand={BRAND} announcement={parseAnnouncement(ann)} user={{ username: user.username, plan: user.plan, avatar: profile.avatar, display: profile.displayName || user.username, owner, openReports, counts: { '/dashboard/community': pend.guestbook + pend.friends + pend.questions } }}>
       {children}
     </Shell>
   );

@@ -10,8 +10,12 @@ export const EFFECTS = [
 export const CURSORS = [['none', 'Standard'], ['trail', 'Leuchtspur'], ['sparks', 'Funken'], ['ring', 'Ring'], ['pixel', 'Pixel']] as const;
 export const NAME_FX = [
   ['glow', 'Glühen'], ['shine', 'Glanz'], ['gradient', 'Verlauf'], ['chrome', 'Chrom'],
-  ['decrypt', 'Entschlüsseln'], ['glitch', 'Glitch'], ['plain', 'Schlicht'],
+  ['decrypt', 'Entschlüsseln'], ['glitch', 'Glitch'], ['rainbow', 'Regenbogen'], ['flicker', 'Neon-Flackern'], ['wave', 'Welle'], ['plain', 'Schlicht'],
 ] as const;
+/** What a click anywhere on the profile spawns. */
+export const CLICK_FX = [['none', 'Nichts'], ['hearts', 'Herzen'], ['confetti', 'Konfetti'], ['stars', 'Sterne'], ['ripple', 'Welle'], ['emoji', 'Eigenes Emoji']] as const;
+/** Ambient layer that floats over the whole page, like profile effects on Discord. */
+export const AMBIENT_FX = [['none', 'Keiner'], ['sakura', 'Kirschblüten'], ['fireflies', 'Glühwürmchen'], ['bubbles', 'Blasen'], ['hearts', 'Herzen'], ['embers', 'Glut'], ['sparkles', 'Funkeln'], ['leaves', 'Herbstlaub'], ['snowflakes', 'Schneeflocken']] as const;
 export const FONTS = [['sans', 'Modern'], ['serif', 'Editorial'], ['mono', 'Terminal']] as const;
 export const ALIGNS = [['center', 'Zentriert'], ['left', 'Linksbündig']] as const;
 
@@ -136,6 +140,17 @@ export const profileSchema = z.object({
   contentWarning: z.object({ on: z.boolean().default(false), text: z.string().max(120).default('') }).default({}),
   /** Avatar ring and card pulse with the profile song. */
   visualizer: z.boolean().default(true),
+  /** What the music drives: avatar style, background, bottom spectrum and beat effects. */
+  viz: z.object({
+    style: z.enum(['ring', 'spectrum', 'orbit']).default('spectrum'),
+    bg: z.boolean().default(true),
+    bars: z.boolean().default(false),
+    bounce: z.boolean().default(true),
+    flash: z.boolean().default(false),
+    hue: z.boolean().default(false),
+    shake: z.boolean().default(false),
+    intensity: z.number().min(10).max(100).default(70),
+  }).default({}),
   /** Level chip and achievements on the card. */
   showLevel: z.boolean().default(true),
   /** "3 schauen gerade" on the card. */
@@ -144,6 +159,17 @@ export const profileSchema = z.object({
   secret: z.object({ on: z.boolean().default(false), message: z.string().max(200).default(''), trigger: z.enum(['konami', 'avatar', 'both']).default('both') }).default({}),
   guestbook: z.object({ on: z.boolean().default(false), autoApprove: z.boolean().default(false) }).default({}),
   showFriends: z.boolean().default(true),
+  clickFx: z.enum(ids(CLICK_FX)).default('none'),
+  clickEmoji: z.string().max(16).default('✨'),
+  ambient: z.enum(ids(AMBIENT_FX)).default('none'),
+  /** "Frag mich": anonymous questions; answered ones can appear on the card. */
+  questions: z.object({ on: z.boolean().default(false), title: z.string().max(40).default('') }).default({}),
+  poll: z.object({
+    on: z.boolean().default(false),
+    question: z.string().max(80).default(''),
+    options: z.array(z.string().max(40)).max(4).default(['', '']),
+    results: z.enum(['after', 'always']).default('after'),
+  }).default({}),
   showViews: z.boolean().default(true),
   socialRow: z.boolean().default(false),
 
@@ -402,4 +428,12 @@ export function decodeLook(code: string): Partial<LookCode> | null {
     const res = profileSchema.pick(Object.fromEntries(LOOK_KEYS.map(k => [k, true])) as Record<(typeof LOOK_KEYS)[number], true>).partial().safeParse(raw);
     return res.success ? res.data : null;
   } catch { return null; }
+}
+
+/** Poll identity: votes belong to one question with its options, so editing them starts a fresh poll. */
+export function pollId(poll: Profile['poll']) {
+  const src = `${poll.question}|${poll.options.join('|')}`;
+  let h = 5381;
+  for (let i = 0; i < src.length; i++) h = ((h << 5) + h + src.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
 }

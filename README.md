@@ -33,7 +33,11 @@ Link-in-Bio-Plattform für Creator, Gamer, Artists, Musiker:innen, Streamer und 
 - **Erfolge und Level:** 24 Erfolge (Bronze bis Legendär), die sich automatisch freischalten; XP aus Erfolgen, Aufrufen und Likes ergeben ein Level, das auf dem Profil steht.
 - **Smarte Links:** nur für Handy oder Computer sichtbar, Geheimlinks mit Passwort oder „erst liken, dann öffnen“. Die echte Adresse eines gesperrten Links kommt nie im Browser an.
 - **Community:** gegenseitige Freundschaften mit Avatar-Reihe auf dem Profil, Gästebuch mit Freigabe, Proof-of-Work und Link-Sperre gegen Spam.
-- **Profil-Effekte:** Audio-Visualizer (Avatar-Ring pulsiert zur Musik, bei eigenen Audiodateien per Web-Audio-Analyse), Easter Egg per Konami-Code oder fünf Avatar-Klicks mit Konfetti, „X hier“-Live-Zähler, Tasten 1–9 öffnen Links.
+- **Visualizer:** Musik-Analyse in 48 Frequenzbändern mit Beat-Erkennung (echte Web-Audio-Analyse bei eigenen Audiodateien, mitlaufender Beat bei YouTube, SoundCloud und Spotify). Alle 10 Hintergründe reagieren (Tempo, Bass, Druckwellen bei Beats), dazu Spektrum-Kreis oder Orbit um den Avatar, Spektrum-Balken am Rand, Karte federt im Beat, Lichtblitz, Farbwandel, Kamera-Wackeln, Intensitätsregler.
+- **Stories:** Text- oder Bild-Updates für 24 Stunden mit farbigem Ring um den Avatar und Vollbild-Viewer.
+- **Frag mich und Umfrage:** anonyme Fragen mit ausgewählten Antworten auf dem Profil; Umfrage mit bis zu 4 Antworten, eine Stimme pro Person, nur nach echtem Seitenaufruf.
+- **Profil-Effekte und Klicks:** schwebende Ebene über der Seite (Kirschblüten, Glühwürmchen, Blasen, Herzen, Glut, Funkeln, Herbstlaub, Schneeflocken), Klick-Effekte (Herzen, Konfetti, Sterne, Welle, eigenes Emoji), neue Namenseffekte (Regenbogen, Neon-Flackern, Welle).
+- **Profil-Extras:** Easter Egg per Konami-Code oder fünf Avatar-Klicks mit Konfetti, „X hier“-Live-Zähler, Tasten 1–9 öffnen Links.
 - **Für Websites:** Aufrufzähler-Badge als SVG für GitHub-READMEs (`/<name>/badge.svg`), einbettbare Profilkarte (`/embed/<name>`).
 - **Profil-Verlauf:** die letzten 20 Versionen des Profils, mit einem Klick wiederherstellbar.
 - **App:** Das Dashboard lässt sich als App auf dem Handy installieren (Web-App-Manifest).

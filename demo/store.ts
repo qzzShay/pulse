@@ -9,6 +9,9 @@ export type DemoUser = { id: number; username: string; email: string | null; pla
 export type DemoState = {
   user: DemoUser; profile: Profile; links: EditableLink[]; signupOpen: boolean; clicks: Record<string, number>; version: number;
   totp: boolean; aliases: string[];
+  stories: { id: number; text: string; image: string; bg: string; createdAt: number; expiresAt: number }[];
+  questions: { id: number; question: string; answer: string; public: boolean; createdAt: number; answeredAt: number | null }[];
+  votes: number[]; myVote: number | null;
   guestbook: { id: number; author: string; message: string; status: 'pending' | 'approved'; createdAt: number }[];
   friends: { id: number; username: string; name: string; accent: string; avatar: boolean }[];
   snapshots: { id: number; label: string; createdAt: number; data: string }[]; likes: number; liked: boolean;
@@ -17,8 +20,11 @@ export type DemoState = {
   files: { id: string; kind: string; size: number; createdAt: number; url: string }[]; admin: { users: AdminUser[]; reports: AdminReport[] };
 };
 
-const KEY = 'pulse-demo-v5';
+const KEY = 'pulse-demo-v6';
 const day = 864e5;
+
+/** Set by entry.tsx: a generated drum loop used as the sample profile song. */
+export const demoMusic = { url: '' };
 
 function seed(): DemoState {
   const base = profileSchema.parse({
@@ -42,6 +48,12 @@ function seed(): DemoState {
   profile.guestbook = { on: true, autoApprove: false };
   profile.secret = { on: true, message: 'Du hast es gefunden! Code NOVA10 = 10 % im Merch-Shop.', trigger: 'both' };
   profile.showLive = true;
+  if (demoMusic.url) profile.music = { ...profile.music, source: 'file', url: demoMusic.url, mediaId: demoMusic.url, title: 'Demo-Beat', artist: 'Pulse', cover: '' };
+  profile.ambient = 'sparkles';
+  profile.clickFx = 'hearts';
+  profile.viz = { style: 'spectrum', bg: true, bars: true, bounce: true, flash: false, hue: false, shake: false, intensity: 75 };
+  profile.questions = { on: true, title: 'Frag mich etwas' };
+  profile.poll = { on: true, question: 'Was streame ich am Freitag?', options: ['Valorant', 'Minecraft Hardcore', 'Just Chatting'], results: 'after' };
   profile.customBadges = [{ id: 'team', label: 'Team Nova', icon: 'flame', color: '#ffcf5c', on: true }];
   profile.connections = [
     { platform: 'steam', handle: 'nova' }, { platform: 'twitch', handle: 'nova_live' }, { platform: 'valorant', handle: 'Nova#EUW' },
@@ -75,6 +87,16 @@ function seed(): DemoState {
       { id: 80, username: 'z', name: 'Zed', accent: '#ffcf5c', avatar: false },
     ],
     snapshots: [],
+    stories: [
+      { id: 1, text: 'Heute 20 Uhr live: Ranked bis Diamant!', image: '', bg: 'sunset', createdAt: now - 2 * 3600e3, expiresAt: now + 22 * 3600e3 },
+      { id: 2, text: 'Neues Overlay ist fertig. Wie findet ihr es?', image: '', bg: 'neon', createdAt: now - 3600e3, expiresAt: now + 23 * 3600e3 },
+    ],
+    questions: [
+      { id: 1, question: 'Welche Maus benutzt du?', answer: 'Eine leichte Wireless-Maus mit 1.600 DPI.', public: true, createdAt: now - 2 * day, answeredAt: now - day },
+      { id: 2, question: 'Wann kommt das nächste Turnier?', answer: 'In drei Tagen, Anmeldung steht oben in den Links!', public: true, createdAt: now - day, answeredAt: now - 5 * 3600e3 },
+      { id: 3, question: 'Machst du mal einen Stream mit Kai?', answer: '', public: false, createdAt: now - 3600e3, answeredAt: null },
+    ],
+    votes: [41, 63, 18], myVote: null,
     aliases: ['n0va'], likes: 248, liked: false, webhook: '',
     announcement: { id: 'demo1', text: 'Neu: Likes, Entdecken-Seite, Countdown und Einladungscodes.', tone: 'good' },
     invites: [

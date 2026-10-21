@@ -1,4 +1,8 @@
-/* Canvas effect engine: animated backgrounds + cursor effects for a profile stage. Client-only. */
+/* Canvas effect engine: animated backgrounds + cursor effects for a profile stage. Client-only.
+   With `react` on, backgrounds follow the profile song (see ./audio): motion speeds up with loudness,
+   each effect has its own response to bass, and beats send shockwaves across the page. */
+
+import { audioFx, BANDS } from './audio';
 
 type RGB = [number, number, number];
 
@@ -55,6 +59,11 @@ export class Stage {
   private off?: HTMLCanvasElement; private octx?: CanvasRenderingContext2D; private img?: ImageData;
   private ro: ResizeObserver; private io: IntersectionObserver;
   tilt = false;
+  /** Music reactions: background, bottom spectrum, strength 0…1. */
+  react = { bg: false, spectrum: false, intensity: 0.7 };
+  private phase = 0; private lastTs = 0;
+  private waves: { r: number; a: number; w: number }[] = [];
+  private offBeat: () => void;
 
   constructor(el: HTMLElement, opts: { host?: HTMLElement } = {}) {
     this.el = el;
@@ -69,10 +78,23 @@ export class Stage {
     host.addEventListener('pointerleave', this.onLeave);
     host.addEventListener('pointerdown', this.onDown);
     this.raf = requestAnimationFrame(this.loop);
+    this.offBeat = audioFx.onBeat(strength => {
+      if (!this.react.bg || reduced()) return;
+      this.waves.push({ r: 0, a: 0.55 * strength * (0.4 + this.react.intensity), w: 2 + strength * 6 });
+      if (this.waves.length > 6) this.waves.shift();
+    });
+  }
+
+  /** Bass, level and kick scaled by intensity; zero when nothing plays or reactions are off. */
+  private energy() {
+    if (!this.react.bg || !audioFx.playing) return { b: 0, l: 0, k: 0 };
+    const i = this.react.intensity * 1.4;
+    return { b: audioFx.bass * i, l: audioFx.level * i, k: audioFx.kick * i };
   }
 
   destroy() {
     cancelAnimationFrame(this.raf);
+    this.offBeat();
     this.ro.disconnect(); this.io.disconnect();
     this.el.removeEventListener('pointermove', this.onMove);
     this.el.removeEventListener('pointerleave', this.onLeave);
@@ -150,24 +172,60 @@ export class Stage {
       }
       return;
     }
-    this.drawBg(ts / 1000);
+    const dt = this.lastTs ? Math.min(0.1, (ts - this.lastTs) / 1000) : 0.016;
+    this.lastTs = ts;
+    // Motion time runs faster with the music, up to about 3× at full volume.
+    this.phase += dt * (1 + this.energy().l * 1.6);
+    this.drawBg(this.phase);
+    this.drawWaves(dt);
     this.drawCursor();
+    this.drawSpectrum();
   };
+
+  /** Shockwave rings from beats, expanding from the centre. */
+  private drawWaves(dt: number) {
+    if (!this.waves.length) return;
+    const g = this.b, { w, h } = this, [r, gg, b] = this.rgb, max = Math.hypot(w, h) / 2;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (const q of this.waves) {
+      q.r += dt * max * 1.6; q.a *= Math.pow(0.08, dt);
+      g.strokeStyle = `rgba(${r},${gg},${b},${q.a})`; g.lineWidth = q.w;
+      g.beginPath(); g.arc(w / 2, h / 2, q.r, 0, 6.283); g.stroke();
+    }
+    g.restore();
+    this.waves = this.waves.filter(q => q.r < max && q.a > 0.01);
+  }
+
+  /** Mirrored spectrum bars along the bottom edge. */
+  private drawSpectrum() {
+    if (!this.react.spectrum || !audioFx.playing) return;
+    const c = this.c, { w, h } = this, S = audioFx.spectrum, [r, g, b] = this.rgb, [r2, g2, b2] = this.rgb2;
+    const n = BANDS * 2, bw = w / n, maxH = h * 0.22 * (0.6 + this.react.intensity * 0.6);
+    const grad = c.createLinearGradient(0, h, 0, h - maxH);
+    grad.addColorStop(0, `rgba(${r},${g},${b},.75)`); grad.addColorStop(1, `rgba(${r2},${g2},${b2},.15)`);
+    c.fillStyle = grad;
+    for (let i = 0; i < n; i++) {
+      const k = i < BANDS ? BANDS - 1 - i : i - BANDS;
+      const bh = Math.max(2, S[k] * maxH);
+      c.fillRect(i * bw + 1, h - bh, Math.max(1, bw - 2), bh);
+    }
+  }
 
   private drawBg(t: number) {
     const g = this.b, { w, h } = this;
     const [r, gg, b] = this.rgb, [r2, g2, b2] = this.rgb2;
     const A = (a: number) => `rgba(${r},${gg},${b},${a})`, B = (a: number) => `rgba(${r2},${g2},${b2},${a})`;
     const R = Math.random, S = Math.sin;
+    const E = this.energy();
     switch (this.effect) {
       case 'aurora': {
         g.globalCompositeOperation = 'source-over'; g.fillStyle = BASE; g.fillRect(0, 0, w, h);
         g.globalCompositeOperation = 'lighter';
         for (let i = 0; i < 4; i++) {
           const cx = w * (0.5 + 0.4 * S(t * 0.13 * (i + 1) + i * 1.7)), cy = h * (0.45 + 0.36 * Math.cos(t * 0.11 * (i + 1.3) + i));
-          const rad = Math.max(w, h) * (0.42 + 0.1 * S(t * 0.2 + i));
+          const rad = Math.max(w, h) * (0.42 + 0.1 * S(t * 0.2 + i)) * (1 + E.b * 0.35);
           const gr = g.createRadialGradient(cx, cy, 0, cx, cy, rad);
-          gr.addColorStop(0, i % 2 ? B(0.3) : A(0.32)); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          gr.addColorStop(0, i % 2 ? B(Math.min(0.75, 0.3 + E.l * 0.3)) : A(Math.min(0.75, 0.32 + E.k * 0.35))); gr.addColorStop(1, 'rgba(0,0,0,0)');
           g.fillStyle = gr; g.fillRect(0, 0, w, h);
         }
         g.globalCompositeOperation = 'source-over';
@@ -198,29 +256,35 @@ export class Stage {
         this.octx!.putImageData(this.img!, 0, 0);
         g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
         g.drawImage(this.off, 0, 0, w, h);
+        if (E.k > 0.02) { g.globalCompositeOperation = 'lighter'; g.fillStyle = A(Math.min(0.35, E.k * 0.25)); g.fillRect(0, 0, w, h); g.globalCompositeOperation = 'source-over'; }
         break;
       }
       case 'particles': {
         g.fillStyle = BASE; g.fillRect(0, 0, w, h);
         const ps = this.p, m = this.m;
         for (const q of ps) {
-          q.x += q.vx; q.y += q.vy;
+          q.x += q.vx * (1 + E.l * 3); q.y += q.vy * (1 + E.l * 3);
           if (q.x < 0) q.x += w; if (q.x > w) q.x -= w; if (q.y < 0) q.y += h; if (q.y > h) q.y -= h;
           if (m.in) { const dx = q.x - m.x, dy = q.y - m.y, dd = Math.hypot(dx, dy); if (dd < 120 && dd > 0) { q.x += (dx / dd) * 1.6; q.y += (dy / dd) * 1.6; } }
         }
-        g.lineWidth = 1;
+        g.lineWidth = 1 + E.b;
+        const reach = 115 + E.b * 70;
+        // Beats make the whole net breathe out from the centre (drawing only, the drift stays calm).
+        const zoom = 1 + E.k * 0.08;
+        if (zoom > 1.001) { g.save(); g.translate(w / 2, h / 2); g.scale(zoom, zoom); g.translate(-w / 2, -h / 2); }
         for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
           const dd = Math.hypot(ps[i].x - ps[j].x, ps[i].y - ps[j].y);
-          if (dd < 115) { g.strokeStyle = A((1 - dd / 115) * 0.45); g.beginPath(); g.moveTo(ps[i].x, ps[i].y); g.lineTo(ps[j].x, ps[j].y); g.stroke(); }
+          if (dd < reach) { g.strokeStyle = A((1 - dd / reach) * (0.45 + E.l * 0.4)); g.beginPath(); g.moveTo(ps[i].x, ps[i].y); g.lineTo(ps[j].x, ps[j].y); g.stroke(); }
         }
-        ps.forEach((q, i) => { g.fillStyle = i % 4 ? A(0.9) : B(0.9); g.beginPath(); g.arc(q.x, q.y, 1.8, 0, 6.283); g.fill(); });
+        ps.forEach((q, i) => { g.fillStyle = i % 4 ? A(0.9) : B(0.9); g.beginPath(); g.arc(q.x, q.y, 1.8 + E.b * 2.5, 0, 6.283); g.fill(); });
+        if (zoom > 1.001) g.restore();
         break;
       }
       case 'stars': {
         g.fillStyle = 'rgba(7,7,9,.5)'; g.fillRect(0, 0, w, h);
         const cx = w / 2, cy = h / 2, k = w * 0.5;
         for (const s of this.p) {
-          const pz = s.z; s.z -= 3.2;
+          const pz = s.z; s.z -= 3.2 + E.b * 22;
           if (s.z < 1) { s.x = (R() - 0.5) * w * 2; s.y = (R() - 0.5) * h * 2; s.z = w; continue; }
           const x = cx + (s.x / s.z) * k, y = cy + (s.y / s.z) * k, px = cx + (s.x / pz) * k, py = cy + (s.y / pz) * k;
           if (x < -10 || x > w + 10 || y < -10 || y > h + 10) { s.z = 0; continue; }
@@ -231,9 +295,10 @@ export class Stage {
         break;
       }
       case 'rain': {
-        this.tick++; if (this.tick % 2) break;
+        this.tick++; if (this.tick % 2 && E.l < 0.35) break;
         const fs = this.fs;
         g.fillStyle = 'rgba(7,7,9,.14)'; g.fillRect(0, 0, w, h);
+        if (E.k > 0.4) { g.fillStyle = A(E.k * 0.08); g.fillRect(0, 0, w, h); }
         g.font = `${fs}px "Geist Mono", monospace`;
         for (let i = 0; i < this.cols.length; i++) {
           const y = this.cols[i], ch = GLYPHS[(R() * GLYPHS.length) | 0];
@@ -250,10 +315,11 @@ export class Stage {
         for (let k = 0; k < 8; k++) {
           g.beginPath();
           for (let x = 0; x <= w + 8; x += 8) {
-            const y = h * (0.3 + k * 0.065) + S(x * 0.007 + t * (0.55 + k * 0.07) + k) * 26 * (1 + k * 0.14) + S(x * 0.021 - t * 0.9 + k) * 6;
+            const amp = 26 * (1 + k * 0.14) * (1 + E.b * 2.2) + E.k * 18 * S(x * 0.03 + k);
+            const y = h * (0.3 + k * 0.065) + S(x * 0.007 + t * (0.55 + k * 0.07) + k) * amp + S(x * 0.021 - t * 0.9 + k) * 6 * (1 + E.l * 2);
             if (x) g.lineTo(x, y); else g.moveTo(x, y);
           }
-          g.strokeStyle = k % 2 ? B(0.5 - k * 0.035) : A(0.6 - k * 0.04); g.lineWidth = 1.6; g.stroke();
+          g.strokeStyle = k % 2 ? B(Math.min(1, 0.5 - k * 0.035 + E.l * 0.3)) : A(Math.min(1, 0.6 - k * 0.04 + E.l * 0.3)); g.lineWidth = 1.6 + E.b * 2; g.stroke();
         }
         break;
       }
@@ -262,7 +328,7 @@ export class Stage {
         const sky = g.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, 'rgba(0,0,0,0)'); sky.addColorStop(1, A(0.16));
         g.fillStyle = sky; g.fillRect(0, 0, w, h);
         for (const f of this.p) {
-          f.y += f.s; f.x += S(t * 0.8 + f.o) * 0.35;
+          f.y += f.s * (1 + E.l * 3); f.x += S(t * 0.8 + f.o) * (0.35 + E.b * 2);
           if (f.y > h + 4) { f.y = -4; f.x = R() * w; }
           g.fillStyle = f.r > 1.8 ? A(0.85) : 'rgba(255,255,255,.75)';
           g.beginPath(); g.arc(f.x, f.y, f.r, 0, 6.283); g.fill();
@@ -274,7 +340,7 @@ export class Stage {
         const hz = h * 0.52;
         const sky = g.createLinearGradient(0, 0, 0, hz); sky.addColorStop(0, 'rgba(0,0,0,0)'); sky.addColorStop(1, B(0.28));
         g.fillStyle = sky; g.fillRect(0, 0, w, hz);
-        const sr = Math.min(w, h) * 0.22;
+        const sr = Math.min(w, h) * 0.22 * (1 + E.b * 0.18);
         const sun = g.createLinearGradient(0, hz - sr, 0, hz); sun.addColorStop(0, A(1)); sun.addColorStop(1, B(1));
         g.fillStyle = sun; g.beginPath(); g.arc(w / 2, hz, sr, Math.PI, 0); g.closePath(); g.fill();
         g.fillStyle = BASE;
@@ -284,7 +350,7 @@ export class Stage {
         const off = (t * 0.45) % 1;
         for (let i = 0; i < 14; i++) {
           const z = (i + off) / 14, y = hz + (h - hz) * z * z;
-          g.strokeStyle = A(Math.min(0.8, z * 1.3)); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+          g.strokeStyle = A(Math.min(1, z * 1.3 + E.k * 0.4)); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
         }
         g.strokeStyle = A(0.35);
         for (let k = -16; k <= 16; k++) { g.beginPath(); g.moveTo(w / 2 + k * 7, hz); g.lineTo(w / 2 + k * w * 0.085, h); g.stroke(); }
@@ -293,7 +359,7 @@ export class Stage {
       }
       default: {
         const gr = g.createRadialGradient(w / 2, h * 0.2, 0, w / 2, h * 0.2, Math.max(w, h) * 0.8);
-        gr.addColorStop(0, A(0.2)); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        gr.addColorStop(0, A(Math.min(0.7, 0.2 + E.b * 0.4 + E.k * 0.2))); gr.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = BASE; g.fillRect(0, 0, w, h); g.fillStyle = gr; g.fillRect(0, 0, w, h);
       }
     }

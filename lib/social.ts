@@ -35,10 +35,11 @@ export async function setGuestStatus(userId: number, id: number, approve: boolea
 
 export async function pendingCounts(userId: number) {
   await ready();
-  const [r] = await db.all<{ g: number; f: number }>(sql`select
+  const [r] = await db.all<{ g: number; f: number; q: number }>(sql`select
     (select count(*) from guestbook where user_id = ${userId} and status = 'pending') as g,
-    (select count(*) from friends where addressee = ${userId} and status = 'pending') as f`);
-  return { guestbook: Number(r?.g ?? 0), friends: Number(r?.f ?? 0) };
+    (select count(*) from friends where addressee = ${userId} and status = 'pending') as f,
+    (select count(*) from questions where user_id = ${userId} and answered_at is null) as q`);
+  return { guestbook: Number(r?.g ?? 0), friends: Number(r?.f ?? 0), questions: Number(r?.q ?? 0) };
 }
 
 /* ---------- friends ---------- */

@@ -152,3 +152,35 @@ export const snapshots = sqliteTable('snapshots', {
   label: text('label').notNull().default(''),
   createdAt: integer('created_at').notNull(),
 });
+
+/** Short posts that disappear after 24 hours, shown as a ring around the avatar. */
+export const stories = sqliteTable('stories', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  text: text('text').notNull().default(''),
+  image: text('image').notNull().default(''),
+  bg: text('bg').notNull().default(''),
+  createdAt: integer('created_at').notNull(),
+  expiresAt: integer('expires_at').notNull(),
+});
+
+/** Anonymous questions; answered ones can be shown on the profile. */
+export const questions = sqliteTable('questions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  question: text('question').notNull(),
+  answer: text('answer').notNull().default(''),
+  public: integer('public', { mode: 'boolean' }).notNull().default(false),
+  asker: text('asker').notNull(),
+  createdAt: integer('created_at').notNull(),
+  answeredAt: integer('answered_at'),
+});
+
+/** Poll votes; the poll itself lives in the profile JSON. `pollId` changes when the question changes. */
+export const votes = sqliteTable('votes', {
+  userId: integer('user_id').notNull(),
+  pollId: text('poll_id').notNull(),
+  voter: text('voter').notNull(),
+  option: integer('option').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
